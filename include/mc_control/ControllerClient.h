@@ -185,7 +185,7 @@ protected:
   virtual void stopped() {}
 
   /** Should be implemented to create a new category container */
-  virtual void category(const std::vector<std::string> & parent, const std::string & category){};
+  virtual void category(const std::vector<std::string> & parent, const std::string & category) {};
 
   /** Should be implemented to create a label for data that can be displayed as string */
   inline virtual void label(const ElementId & id, const std::string &) { default_impl("Label", id); }
@@ -459,6 +459,11 @@ protected:
                      const sva::PTransformd & /*posW*/)
   {
     default_impl("Robot", id);
+  }
+
+  virtual void robot_msg(const ElementId & id, const mc_rtc::gui::RobotMsgData & /*msg*/)
+  {
+    default_impl("RobotMsg", id);
   }
 
   /** Should display the visual element \p visual at the position \p pose */

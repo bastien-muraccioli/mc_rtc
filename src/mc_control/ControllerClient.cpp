@@ -54,6 +54,9 @@ void init_socket(int & socket, int proto, const std::string & uri, const std::st
   {
     int err = nn_setsockopt(socket, NN_SUB, NN_SUB_SUBSCRIBE, "", 0);
     if(err < 0) { mc_rtc::log::error_and_throw("Failed to set subscribe option on SUB socket"); }
+    int opt = -1;
+    err = nn_setsockopt(socket, NN_SOL_SOCKET, NN_RCVMAXSIZE, &opt, sizeof(opt));
+    if(err < 0) { mc_rtc::log::error_and_throw("Failed to set receive max size option on SUB socket"); }
   }
 }
 
@@ -375,6 +378,12 @@ void ControllerClient::handle_widget(const ElementId & id, const mc_rtc::Configu
       case Elements::Robot:
         robot(id, data[3], data[4], data[5]);
         break;
+      case Elements::RobotMsg:
+      {
+        mc_rtc::gui::RobotMsgData msg(data[3], data[4], data[5], data[6], data[7], data[8], data[9]);
+        robot_msg(id, msg);
+        break;
+      }
       case Elements::Visual:
         if(data[4].size() == 3)
         {

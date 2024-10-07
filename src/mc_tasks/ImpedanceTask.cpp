@@ -142,8 +142,8 @@ void ImpedanceTask::update(mc_solver::QPSolver & solver)
 
   // 5. Set compliance values to the targets of SurfaceTransformTask
   refAccel(T_0_s * (targetAccelW_ + deltaCompAccelW_)); // represented in the surface frame
-  refVelB(T_0_s * (targetVelW_ + deltaCompVelW_)); // represented in the surface frame
-  target(compliancePose()); // represented in the world frame
+  TransformTask::refVelB(T_0_s * (targetVelW_ + deltaCompVelW_)); // represented in the surface frame
+  TransformTask::target(compliancePose()); // represented in the world frame
 }
 
 void ImpedanceTask::reset()
@@ -153,7 +153,7 @@ void ImpedanceTask::reset()
   TransformTask::reset();
 
   // Set the target and compliance poses to the SurfaceTransformTask target (i.e., the current pose)
-  targetPoseW_ = target();
+  targetPoseW_ = TransformTask::target();
   deltaCompPoseW_ = sva::PTransformd::Identity();
 
   // Reset the target and compliance velocity and acceleration to zero
@@ -203,6 +203,7 @@ void ImpedanceTask::addToLogger(mc_rtc::Logger & logger)
                      [this]() -> const sva::ImpedanceVecd & { return gains().wrench().vec(); });
 
   // compliance values
+  logger.addLogEntry(name_ + "_compliancePose", this, [this]() { return compliancePose(); });
   MC_RTC_LOG_HELPER(name_ + "_deltaCompliancePose", deltaCompPoseW_);
   MC_RTC_LOG_HELPER(name_ + "_deltaComplianceVel", deltaCompVelW_);
   MC_RTC_LOG_HELPER(name_ + "_deltaComplianceAccel", deltaCompAccelW_);
@@ -245,25 +246,21 @@ void ImpedanceTask::addToGUI(mc_rtc::gui::StateBuilder & gui)
                  mc_rtc::gui::NumberInput(
                      "cutoffPeriod", [this]() { return this->cutoffPeriod(); },
                      [this](double a) { return this->cutoffPeriod(a); }),
-                 mc_rtc::gui::Checkbox(
-                     "hold", [this]() { return hold_; }, [this]() { hold_ = !hold_; }));
-  gui.addElement({"Tasks", name_, "Impedance gains"},
-                 mc_rtc::gui::ArrayInput(
-                     "mass", {"cx", "cy", "cz", "fx", "fy", "fz"},
-                     [this]() -> const sva::ImpedanceVecd & { return gains().mass().vec(); },
-                     [this](const Eigen::Vector6d & a) { gains().mass().vec(a); }),
-                 mc_rtc::gui::ArrayInput(
-                     "damper", {"cx", "cy", "cz", "fx", "fy", "fz"},
-                     [this]() -> const sva::ImpedanceVecd & { return gains().damper().vec(); },
-                     [this](const Eigen::Vector6d & a) { gains().damper().vec(a); }),
-                 mc_rtc::gui::ArrayInput(
-                     "spring", {"cx", "cy", "cz", "fx", "fy", "fz"},
-                     [this]() -> const sva::ImpedanceVecd & { return gains().spring().vec(); },
-                     [this](const Eigen::Vector6d & a) { gains().spring().vec(a); }),
-                 mc_rtc::gui::ArrayInput(
-                     "wrench", {"cx", "cy", "cz", "fx", "fy", "fz"},
-                     [this]() -> const sva::ImpedanceVecd & { return gains().wrench().vec(); },
-                     [this](const Eigen::Vector6d & a) { gains().wrench().vec(a); }));
+                 mc_rtc::gui::Checkbox("hold", [this]() { return hold_; }, [this]() { hold_ = !hold_; }));
+  gui.addElement(
+      {"Tasks", name_, "Impedance gains"},
+      mc_rtc::gui::ArrayInput(
+          "mass", {"cx", "cy", "cz", "fx", "fy", "fz"}, [this]() -> const sva::ImpedanceVecd &
+          { return gains().mass().vec(); }, [this](const Eigen::Vector6d & a) { gains().mass().vec(a); }),
+      mc_rtc::gui::ArrayInput(
+          "damper", {"cx", "cy", "cz", "fx", "fy", "fz"}, [this]() -> const sva::ImpedanceVecd &
+          { return gains().damper().vec(); }, [this](const Eigen::Vector6d & a) { gains().damper().vec(a); }),
+      mc_rtc::gui::ArrayInput(
+          "spring", {"cx", "cy", "cz", "fx", "fy", "fz"}, [this]() -> const sva::ImpedanceVecd &
+          { return gains().spring().vec(); }, [this](const Eigen::Vector6d & a) { gains().spring().vec(a); }),
+      mc_rtc::gui::ArrayInput(
+          "wrench", {"cx", "cy", "cz", "fx", "fy", "fz"}, [this]() -> const sva::ImpedanceVecd &
+          { return gains().wrench().vec(); }, [this](const Eigen::Vector6d & a) { gains().wrench().vec(a); }));
 }
 
 } // namespace force
@@ -294,4 +291,4 @@ static auto registered = mc_tasks::MetaTaskLoader::register_load_function(
       t->load(solver, config);
       return t;
     });
-}
+} // namespace

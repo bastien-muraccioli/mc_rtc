@@ -26,8 +26,6 @@
 
 #include <algorithm>
 #include <cstdlib>
-#include <fstream>
-#include <iomanip>
 
 namespace mc_control
 {
@@ -35,21 +33,18 @@ namespace mc_control
 MCGlobalController::PluginHandle::~PluginHandle() {}
 
 MCGlobalController::MCGlobalController(const std::string & conf, std::shared_ptr<mc_rbdyn::RobotModule> rm)
-: MCGlobalController(GlobalConfiguration(conf, rm))
+: MCGlobalController(GlobalConfiguration(conf, std::move(rm)))
 {
 }
 
 MCGlobalController::MCGlobalController(const GlobalConfiguration & conf)
-: config(conf), current_ctrl(""), next_ctrl(""), controller_(nullptr), next_controller_(nullptr)
+: config(conf), controller_(nullptr), next_controller_(nullptr)
 {
   // Display configuration information
   if(conf.enable_gui_server)
   {
     mc_rtc::log::info("GUI server enabled");
-    mc_rtc::log::info("Will serve data on:");
-    for(const auto & pub_uri : conf.gui_server_pub_uris) { mc_rtc::log::info("- {}", pub_uri); }
-    mc_rtc::log::info("Will handle requests on:");
-    for(const auto & rep_uri : conf.gui_server_rep_uris) { mc_rtc::log::info("- {}", rep_uri); }
+    conf.gui_server_configuration.print_serving_information();
   }
   else { mc_rtc::log::info("GUI server disabled"); }
   {
@@ -130,8 +125,7 @@ MCGlobalController::MCGlobalController(const GlobalConfiguration & conf)
 
   if(config.enable_gui_server)
   {
-    server_.reset(new mc_control::ControllerServer(config.timestep, config.gui_timestep, config.gui_server_pub_uris,
-                                                   config.gui_server_rep_uris));
+    server_.reset(new mc_control::ControllerServer(config.timestep, config.gui_server_configuration));
   }
 }
 
@@ -1029,7 +1023,8 @@ bool MCGlobalController::GoToHalfSitPose()
 
 void MCGlobalController::start_log()
 {
-  controller_->logger().start(current_ctrl, controller_->timeStep);
+  controller_->logger().start(current_ctrl, controller_->timeStep,
+                              setup_logger_.find(current_ctrl) != setup_logger_.end());
   setup_log();
   if(server_) { server_->set_logger(controller_->logger_); }
 }
@@ -1047,7 +1042,14 @@ void MCGlobalController::setup_log()
   meta.main_robot = controller_->robot().name();
   meta.main_robot_module = controller_->robot().module().parameters();
   meta.init.clear();
-  for(const auto & r : controller_->robots()) { meta.init[r.name()] = r.posW(); }
+  meta.init_q.clear();
+  meta.calibs.clear();
+  for(const auto & r : controller_->robots())
+  {
+    meta.init[r.name()] = r.posW();
+    meta.init_q[r.name()] = r.mbc().q;
+    for(const auto & fs : r.forceSensors()) { meta.calibs[r.name()][fs.name()] = fs.calib().toConfiguration(); }
+  }
   if(setup_logger_.count(current_ctrl)) { return; }
   // Copy controller pointer to avoid lambda issue
   MCController * controller = controller_;
