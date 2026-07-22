@@ -16,8 +16,10 @@
 
 #include <tvm/solver/defaultLeastSquareSolver.h>
 #include <tvm/task_dynamics/ProportionalDerivative.h>
+#include <vector>
 
 #include <RBDyn/FD.h>
+#include <RBDyn/NumericalIntegration.h>
 
 namespace mc_solver
 {
@@ -173,84 +175,84 @@ bool TVMQPSolver::runOpenLoop()
 
 //   for(auto & robot : *robots_p)
 //   {
-//     if(robot.mb().nrDof() == 0) { continue; }
-//     auto & tvm_robot = robot.tvmRobot();
-//     rbd::vectorToParam(tvm_robot.tau()->value(), robot.jointTorque());
-//     rbd::vectorToParam(tvm_robot.alphaD()->value(), robot.alphaD());
+// if(robot.mb().nrDof() == 0) { continue; }
+// auto & tvm_robot = robot.tvmRobot();
+// rbd::vectorToParam(tvm_robot.tau()->value(), robot.jointTorque());
+// rbd::vectorToParam(tvm_robot.alphaD()->value(), robot.alphaD());
 
-//     const auto & joints = robot.mb().joints();
-//     auto q_k = robot.mbc().q;
-//     auto alpha_k = robot.mbc().alpha;
-//     auto alphaD_k = robot.mbc().alphaD;
+// const auto & joints = robot.mb().joints();
+// auto q_k = robot.mbc().q;
+// auto alpha_k = robot.mbc().alpha;
+// auto alphaD_k = robot.mbc().alphaD;
 
-//     auto q_mid = q_k;
-//     auto alpha_mid = alpha_k;
+// auto q_mid = q_k;
+// auto alpha_mid = alpha_k;
 
-//     // rk2 integration
-//     for(std::size_t i = 0; i < joints.size(); ++i)
+// // rk2 integration
+// for(std::size_t i = 0; i < joints.size(); ++i)
+// {
+//   switch(joints[i].type())
+//   {
+//     case rbd::Joint::Rev:
+//     case rbd::Joint::Prism:
 //     {
-//       switch(joints[i].type())
-//       {
-//         case rbd::Joint::Rev:
-//         case rbd::Joint::Prism:
-//         {
-//           q_mid[i][0] += 0.5 * timeStep * alpha_k[i][0];
-//           alpha_mid[i][0] += 0.5 * timeStep * alphaD_k[i][0];
-//           break;
-//         }
-//         default:
-//           break;
-//       }
+//       q_mid[i][0] += 0.5 * timeStep * alpha_k[i][0];
+//       alpha_mid[i][0] += 0.5 * timeStep * alphaD_k[i][0];
+//       break;
 //     }
+//     default:
+//       break;
+//   }
+// }
 
-//     robot.mbc().q = q_mid;
-//     robot.mbc().alpha = alpha_mid;
+// robot.mbc().q = q_mid;
+// robot.mbc().alpha = alpha_mid;
 
-//     robot.forwardKinematics();
-//     robot.forwardVelocity();
+// robot.forwardKinematics();
+// robot.forwardVelocity();
 
-//     // Forward Dynamics
-//     Eigen::VectorXd alphaD_mid_vec = tvm_robot.alphaD()->value();
-//     Eigen::VectorXd tau_k_vec = tvm_robot.tau()->value();
+// // Forward Dynamics
+// Eigen::VectorXd alphaD_mid_vec = tvm_robot.alphaD()->value();
+// Eigen::VectorXd tau_k_vec = tvm_robot.tau()->value();
 
-//     rbd::ForwardDynamics fd(robot.mb());
-//     fd.computeH(robot.mb(), robot.mbc());
-//     fd.computeC(robot.mb(), robot.mbc());
+// rbd::ForwardDynamics fd(robot.mb());
+// fd.computeH(robot.mb(), robot.mbc());
+// fd.computeC(robot.mb(), robot.mbc());
 
-//     Eigen::MatrixXd M = fd.H();
-//     Eigen::VectorXd Cqdotg = fd.C();
-//     Eigen::LDLT<Eigen::MatrixXd> M_ldlt(M);
+// Eigen::MatrixXd M = fd.H();
+// Eigen::VectorXd Cqdotg = fd.C();
+// Eigen::LDLT<Eigen::MatrixXd> M_ldlt(M);
 
-//     Eigen::VectorXd tau_ext = tvm_robot.tauExternal();
+// Eigen::VectorXd tau_ext = tvm_robot.tauExternal();
 
-//     for(const auto & [name, dyn] : dynamics_)
+// for(const auto & [name, dyn] : dynamics_)
+// {
+//   tau_ext += dyn->dynamicFunction().contactTorque();
+// }
+
+// Eigen::VectorXd content = tau_k_vec + tau_ext - Cqdotg;
+// alphaD_mid_vec = M_ldlt.solve(content);
+// rbd::vectorToParam(alphaD_mid_vec, robot.alphaD());
+
+// auto q_kplus = q_k;
+// auto alpha_kplus = alpha_k;
+
+// for(std::size_t i = 0; i < joints.size(); ++i)
+// {
+//   switch(joints[i].type())
+//   {
+//     case rbd::Joint::Rev:
+//     case rbd::Joint::Prism:
 //     {
-//       tau_ext += dyn->dynamicFunction().contactTorque();
+//       q_kplus[i][0] += alpha_mid[i][0] * timeStep;
+//       alpha_kplus[i][0] += robot.mbc().alphaD[i][0] * timeStep;
+//       break;
 //     }
+//   }
+// }
 
-//     Eigen::VectorXd content = tau_k_vec + tau_ext - Cqdotg;
-//     alphaD_mid_vec = M_ldlt.solve(content);
-//     rbd::vectorToParam(alphaD_mid_vec, robot.alphaD());
-
-//     auto q_kplus = q_k;
-//     auto alpha_kplus = alpha_k;
-
-//     for(std::size_t i = 0; i < joints.size(); ++i)
-//     {
-//       switch(joints[i].type())
-//       {
-//         case rbd::Joint::Rev:
-//         case rbd::Joint::Prism:
-//         {
-//           q_kplus[i][0] += alpha_mid[i][0] * timeStep;
-//           alpha_kplus[i][0] += robot.mbc().alphaD[i][0] * timeStep;
-//           break;
-//         }
-//       }
-//     }
-
-//     robot.mbc().q = q_kplus;
-//     robot.mbc().alpha = alpha_kplus;
+// robot.mbc().q = q_kplus;
+// robot.mbc().alpha = alpha_kplus;
 
 //     robot.forwardKinematics();
 //     robot.forwardVelocity();
@@ -397,18 +399,408 @@ bool TVMQPSolver::runOpenLoop()
 // }
 
 // Forward euler integration
+// bool TVMQPSolver::runOpenLoopWithRealFloatingBase()
+// {
+//   for(size_t i = 0; i < robots().size(); ++i)
+//   {
+//     auto & robot = robots_p->robot(i);
+//     if(robot.mb().nrDof() == 0) { continue; }
+//     if(robot.mb().joint(0).type() != rbd::Joint::Free) { continue; }
+
+//     const auto & realRobot = realRobots().robot(i);
+//     robot.q()[0] = realRobot.q()[0];
+//     robot.alpha()[0] = realRobot.alpha()[0];
+//     robot.forwardKinematics();
+//     robot.forwardVelocity();
+//     robot.forwardAcceleration();
+//   }
+
+//   if(!runCommon()) { return false; }
+
+//   for(auto & robot : *robots_p)
+//   {
+//     if(robot.mb().nrDof() == 0) { continue; }
+//     auto & tvm_robot = robot.tvmRobot();
+//     rbd::vectorToParam(tvm_robot.tau()->value(), robot.jointTorque());
+//     rbd::vectorToParam(tvm_robot.alphaD()->value(), robot.alphaD());
+
+//     const auto & joints = robot.mb().joints();
+//     for(std::size_t i = 0; i < joints.size(); ++i)
+//     {
+//       switch(joints[i].type())
+//       {
+//         case rbd::Joint::Rev:
+//         case rbd::Joint::Prism:
+//         {
+//           robot.alpha()[i][0] += timeStep * robot.alphaD()[i][0];
+//           robot.q()[i][0] += timeStep * robot.alpha()[i][0];
+//           break;
+//         }
+//         case rbd::Joint::Free:
+//         {
+//           auto & q = robot.q()[i];
+//           auto & alpha = robot.alpha()[i];
+//           const auto & alphaD = robot.alphaD()[i];
+
+//           // current orientation / position
+//           Eigen::Quaterniond qi(q[0], q[1], q[2], q[3]);
+//           Eigen::Map<Eigen::Vector3d> xi(&q[4]);
+
+//           // current velocity (body-frame angular + linear, RBDyn convention)
+//           Eigen::Vector3d wi(alpha[0], alpha[1], alpha[2]);
+//           Eigen::Vector3d vi(alpha[3], alpha[4], alpha[5]);
+
+//           // acceleration
+//           Eigen::Vector3d wD(alphaD[0], alphaD[1], alphaD[2]);
+//           Eigen::Vector3d vD(alphaD[3], alphaD[4], alphaD[5]);
+
+//           // 1) semi-implicit velocity update
+//           Eigen::Vector3d wNew = wi + timeStep * wD;
+//           Eigen::Vector3d vNew = vi + timeStep * vD;
+
+//           // 2) integrate orientation with the *new* angular velocity, treated as
+//           //    constant over the step -> pure exponential map (wD = 0 here on purpose,
+//           //    since the acceleration was already absorbed into wNew above)
+//           Eigen::Quaterniond qNew = rbd::SO3Integration(qi, wNew, Eigen::Vector3d::Zero(), timeStep).first;
+
+//           // 3) integrate position with the *new* linear velocity, rotated by the old orientation
+//           Eigen::Vector3d xNew = xi + timeStep * (qi * vNew);
+
+//           double nq = qNew.norm();
+//           q[0] = qNew.w() / nq;
+//           q[1] = qNew.x() / nq;
+//           q[2] = qNew.y() / nq;
+//           q[3] = qNew.z() / nq;
+//           xi = xNew; // writes back into q[4..6] via the Map
+
+//           alpha[0] = wNew.x();
+//           alpha[1] = wNew.y();
+//           alpha[2] = wNew.z();
+//           alpha[3] = vNew.x();
+//           alpha[4] = vNew.y();
+//           alpha[5] = vNew.z();
+
+//           break;
+//         }
+//         default:
+//           break;
+//       }
+//     }
+//     if(openLoopRealFBlowPassFilterActive)
+//     {
+//       if(!lowPassFilterStateInitialized_)
+//       {
+//         qFiltered_ = robot.q();
+//         alphaFiltered_ = robot.alpha();
+//         lowPassFilterStateInitialized_ = true;
+//         q_hist_.clear();
+//         a_hist_.clear();
+//         for(size_t i = 0; i < 2; ++i)
+//         {
+//           q_hist_.push_back(robot.q());
+//           a_hist_.push_back(robot.alpha());
+//         }
+//       }
+//       else
+//       {
+//         // double alpha = (M_PI * nyquistFraction) /
+//         //          (1.0 + M_PI * nyquistFraction);
+
+//         // for(std::size_t i = 0; i < joints.size(); ++i)
+//         // {
+//         //   switch(joints[i].type())
+//         //   {
+//         //     case rbd::Joint::Rev:
+//         //     case rbd::Joint::Prism:
+//         //     {
+//         //       qFiltered_[i][0] = qFiltered_[i][0] + alpha * (robot.q()[i][0] - qFiltered_[i][0]);
+//         //       alphaFiltered_[i][0] = alphaFiltered_[i][0] + alpha * (robot.alpha()[i][0] - alphaFiltered_[i][0]);
+//         //       robot.q()[i][0] = qFiltered_[i][0];
+//         //       robot.alpha()[i][0] = alphaFiltered_[i][0];
+//         //       break;
+//         //     }
+//         //     default:
+//         //       break;
+//         //   }
+//         // }
+
+//         // update raw history buffer: q_hist_[0] = x[k], q_hist_[1] = x[k-1]
+//         q_hist_[1] = q_hist_[0];
+//         a_hist_[1] = a_hist_[0];
+//         q_hist_[0] = robot.q();
+//         a_hist_[0] = robot.alpha();
+
+//         // Tustin (bilinear-transform, pre-warped) one-pole low-pass:
+//         //   tau  = tan(pi * nyquistFraction / 2)
+//         //   coefB = tau / (1 + tau),   coefA = (1 - tau) / (1 + tau)
+//         //   y[k] = coefB*(x[k] + x[k-1]) + coefA*y[k-1]
+//         // Unlike the EMA above, this has an EXACT zero at Nyquist for any
+//         // nyquistFraction, so it can be set well below 0.99 (e.g. 0.6-0.8) and
+//         // still cut near-Nyquist content far more than the EMA ever did at 0.99.
+//         double tau = std::tan(M_PI * nyquistFraction / 2.0);
+//         double coefB = tau / (1.0 + tau);
+//         double coefA = (1.0 - tau) / (1.0 + tau);
+
+//         for(std::size_t i = 0; i < joints.size(); ++i)
+//         {
+//           switch(joints[i].type())
+//           {
+//             case rbd::Joint::Rev:
+//             case rbd::Joint::Prism:
+//             {
+//               double q_filt = coefB * (q_hist_[0][i][0] + q_hist_[1][i][0]) + coefA * qFiltered_[i][0];
+//               double a_filt = coefB * (a_hist_[0][i][0] + a_hist_[1][i][0]) + coefA * alphaFiltered_[i][0];
+
+//               qFiltered_[i][0] = q_filt;
+//               alphaFiltered_[i][0] = a_filt;
+
+//               robot.q()[i][0] = q_filt;
+//               robot.alpha()[i][0] = a_filt;
+//               break;
+//             }
+//             default:
+//               break;
+//           }
+//         }
+//       }
+//     }
+//     else
+//     {
+//       lowPassFilterStateInitialized_ = false;
+//     }
+
+//     robot.forwardKinematics();
+//     robot.forwardVelocity();
+//     robot.forwardAcceleration();
+//   }
+
+//   return true;
+// }
+
+// bool TVMQPSolver::runOpenLoopWithRealFloatingBase()
+// {
+//   for(size_t i = 0; i < robots().size(); ++i)
+//   {
+//     auto & robot = robots_p->robot(i);
+//     if(robot.mb().nrDof() == 0) { continue; }
+//     if(robot.mb().joint(0).type() != rbd::Joint::Free) { continue; }
+
+//     const auto & realRobot = realRobots().robot(i);
+//     robot.q()[0] = realRobot.q()[0];
+//     robot.alpha()[0] = realRobot.alpha()[0];
+//     robot.forwardKinematics();
+//     robot.forwardVelocity();
+//     robot.forwardAcceleration();
+//   }
+
+//   if(!runCommon()) { return false; }
+
+//   for(auto & robot : *robots_p)
+//   {
+//     if(robot.mb().nrDof() == 0) { continue; }
+//     auto & tvm_robot = robot.tvmRobot();
+//     rbd::vectorToParam(tvm_robot.tau()->value(), robot.jointTorque());
+//     rbd::vectorToParam(tvm_robot.alphaD()->value(), robot.alphaD());
+
+//     const auto & joints = robot.mb().joints();
+//     for(std::size_t i = 0; i < joints.size(); ++i)
+//     {
+//       switch(joints[i].type())
+//       {
+//         case rbd::Joint::Rev:
+//         case rbd::Joint::Prism:
+//         {
+//           // Semi-implicit (symplectic) Euler: velocity first, then position
+//           // with the *updated* velocity. This is what gives symplectic Euler
+//           // its superior energy behaviour over explicit Euler.
+//           robot.alpha()[i][0] += timeStep * robot.alphaD()[i][0];
+//           robot.q()[i][0] += timeStep * robot.alpha()[i][0];
+//           break;
+//         }
+
+//         case rbd::Joint::Free:
+//         {
+//           // NOTE: robot.q()[0]/alpha()[0] for the floating base are
+//           // unconditionally overwritten from realRobot at the TOP of this
+//           // function on the *next* call, before runCommon() ever reads them.
+//           // Integrating it here is therefore pure waste unless some other
+//           // consumer (logging, visualization, a task) reads robot's predicted
+//           // base state between this point and the next call's overwrite.
+//           //
+//           // Set to false (default) to skip it entirely and save the SO3
+//           // exponential-map cost every cycle. Set to true only if you've
+//           // confirmed something downstream actually needs the intermediate
+//           // predicted base pose/velocity.
+//           constexpr bool kIntegratePredictedFloatingBase = false;
+
+//           if constexpr(kIntegratePredictedFloatingBase)
+//           {
+//             auto & q = robot.q()[i];
+//             auto & alpha = robot.alpha()[i];
+//             const auto & alphaD = robot.alphaD()[i];
+
+//             // RBDyn's Free joint convention: BOTH angular and linear velocity
+//             // are expressed in the BODY frame (see freeJointIntegration_'s
+//             // qi * vi term). This differs from MuJoCo, which stores linear
+//             // velocity in the WORLD frame. If alpha/alphaD ever originate
+//             // from an estimator reporting world-frame linear velocity, they
+//             // must be rotated into the body frame before landing here.
+//             Eigen::Quaterniond qi(q[0], q[1], q[2], q[3]);
+//             Eigen::Map<Eigen::Vector3d> xi(&q[4]);
+
+//             Eigen::Vector3d wi(alpha[0], alpha[1], alpha[2]);
+//             Eigen::Vector3d vi(alpha[3], alpha[4], alpha[5]);
+//             Eigen::Vector3d wD(alphaD[0], alphaD[1], alphaD[2]);
+//             Eigen::Vector3d vD(alphaD[3], alphaD[4], alphaD[5]);
+
+//             // 1) semi-implicit velocity update
+//             Eigen::Vector3d wNew = wi + timeStep * wD;
+//             Eigen::Vector3d vNew = vi + timeStep * vD;
+
+//             // 2) orientation: exponential map with wNew held constant over
+//             // the step. Passing Zero() as the acceleration deliberately
+//             // disables RBDyn's adaptive Magnus-expansion substepping (it
+//             // always short-circuits at the 1-term case). This matches
+//             // MuJoCo's own single-step policy and is safe at typical control
+//             // rates (sub-10ms), but it IS a deliberate accuracy trade-off,
+//             // not a free lunch — revisit if timeStep grows or wD is large.
+//             Eigen::Quaterniond qNew = rbd::SO3Integration(qi, wNew, Eigen::Vector3d::Zero(), timeStep).first;
+
+//             // 3) position: new linear velocity rotated by the OLD orientation
+//             Eigen::Vector3d xNew = xi + timeStep * (qi * vNew);
+
+//             double nq = qNew.norm();
+//             q[0] = qNew.w() / nq;
+//             q[1] = qNew.x() / nq;
+//             q[2] = qNew.y() / nq;
+//             q[3] = qNew.z() / nq;
+//             xi = xNew;
+
+//             alpha[0] = wNew.x();
+//             alpha[1] = wNew.y();
+//             alpha[2] = wNew.z();
+//             alpha[3] = vNew.x();
+//             alpha[4] = vNew.y();
+//             alpha[5] = vNew.z();
+//           }
+//           break;
+//         }
+
+//         // Planar, Cylindrical, Spherical, Fixed: no MuJoCo-style symplectic
+//         // variant implemented here (they don't reduce to the simple
+//         // "scalar velocity then scalar position" update used above). Rather
+//         // than silently freezing them, fall back to RBDyn's own adaptive
+//         // integrator so correctness is preserved even if such a joint
+//         // appears on a robot in this scene.
+//         case rbd::Joint::Planar:
+//         case rbd::Joint::Cylindrical:
+//         case rbd::Joint::Spherical:
+//         case rbd::Joint::Fixed:
+//         default:
+//         {
+//           rbd::jointIntegration(joints[i].type(), robot.alpha()[i], robot.alphaD()[i], timeStep, robot.q()[i]);
+//           for(int j = 0; j < joints[i].dof(); ++j)
+//           {
+//             robot.alpha()[i][static_cast<size_t>(j)] += timeStep * robot.alphaD()[i][static_cast<size_t>(j)];
+//           }
+//           break;
+//         }
+//       }
+//     }
+
+//     if(openLoopRealFBlowPassFilterActive)
+//     {
+//       if(!lowPassFilterStateInitialized_)
+//       {
+//         qFiltered_ = robot.q();
+//         alphaFiltered_ = robot.alpha();
+//         lowPassFilterStateInitialized_ = true;
+//         q_hist_.clear();
+//         a_hist_.clear();
+//         for(size_t k = 0; k < 2; ++k)
+//         {
+//           q_hist_.push_back(robot.q());
+//           a_hist_.push_back(robot.alpha());
+//         }
+//       }
+//       else
+//       {
+//         q_hist_[1] = q_hist_[0];
+//         a_hist_[1] = a_hist_[0];
+//         q_hist_[0] = robot.q();
+//         a_hist_[0] = robot.alpha();
+
+//         // Tustin (bilinear-transform, pre-warped) one-pole low-pass:
+//         //   tau  = tan(pi * nyquistFraction / 2)
+//         //   coefB = tau / (1 + tau),   coefA = (1 - tau) / (1 + tau)
+//         //   y[k] = coefB*(x[k] + x[k-1]) + coefA*y[k-1]
+//         double tau = std::tan(M_PI * nyquistFraction / 2.0);
+//         double coefB = tau / (1.0 + tau);
+//         double coefA = (1.0 - tau) / (1.0 + tau);
+
+//         // Filter every actuated scalar DOF, not just Rev/Prism, so filtered
+//         // and unfiltered joints don't mix inconsistently downstream.
+//         for(std::size_t i = 0; i < joints.size(); ++i)
+//         {
+//           if(joints[i].type() == rbd::Joint::Free) { continue; } // base handled separately, see below
+//           for(int j = 0; j < joints[i].dof(); ++j)
+//           {
+//             auto jj = static_cast<size_t>(j);
+//             double q_filt = coefB * (q_hist_[0][i][jj] + q_hist_[1][i][jj]) + coefA * qFiltered_[i][jj];
+//             double a_filt = coefB * (a_hist_[0][i][jj] + a_hist_[1][i][jj]) + coefA * alphaFiltered_[i][jj];
+
+//             qFiltered_[i][jj] = q_filt;
+//             alphaFiltered_[i][jj] = a_filt;
+
+//             robot.q()[i][jj] = q_filt;
+//             robot.alpha()[i][jj] = a_filt;
+//           }
+//         }
+//       }
+//     }
+//     else
+//     {
+//       lowPassFilterStateInitialized_ = false;
+//     }
+
+//     robot.forwardKinematics();
+//     robot.forwardVelocity();
+//     robot.forwardAcceleration();
+//   }
+
+//   return true;
+// }
+
 bool TVMQPSolver::runOpenLoopWithRealFloatingBase()
 {
+  // std::vector<std::vector<std::vector<double>>> prevAlphaD(robots().size());
+  // for(size_t r = 0; r < robots().size(); ++r)
+  // {
+  //   auto & robot = robots_p->robot(r);
+  //   if(robot.mb().nrDof() == 0) { continue; }
+  //   if(robot.mb().joint(0).type() != rbd::Joint::Free) { continue; }
+
+  //   const auto & realRobot = realRobots().robot(r);
+  //   // robot.q()[0] = realRobot.q()[0];
+  //   // robot.alpha()[0] = realRobot.alpha()[0];
+  //   // robot.forwardKinematics();
+  //   // robot.forwardVelocity();
+  //   // robot.forwardAcceleration();
+
+  //   prevAlphaD[r] = robot.alphaD();
+  // }
+
   if(!runCommon()) { return false; }
 
-  for(auto & robot : *robots_p)
+  for(size_t r = 0; r < robots().size(); ++r)
   {
+    auto & robot = robots_p->robot(r);
     if(robot.mb().nrDof() == 0) { continue; }
     auto & tvm_robot = robot.tvmRobot();
     rbd::vectorToParam(tvm_robot.tau()->value(), robot.jointTorque());
     rbd::vectorToParam(tvm_robot.alphaD()->value(), robot.alphaD());
 
-    // robot.eulerIntegration(timeStep);
+    auto & realRobot = realRobots().robot(r);
     const auto & joints = robot.mb().joints();
     for(std::size_t i = 0; i < joints.size(); ++i)
     {
@@ -417,94 +809,89 @@ bool TVMQPSolver::runOpenLoopWithRealFloatingBase()
         case rbd::Joint::Rev:
         case rbd::Joint::Prism:
         {
-          robot.alpha()[i][0] += timeStep * robot.alphaD()[i][0];
-          robot.q()[i][0] += timeStep * robot.alpha()[i][0];
+          // Semi-implicit (symplectic) Euler: velocity first, then position
+          // with the *updated* velocity. This is what gives symplectic Euler
+          // its superior energy behaviour over explicit Euler.
+          robot.alpha()[i][0] +=
+              timeStep * (robot.alphaD()[i][0] + Lv * (robot.alpha()[i][0] - realRobot.alpha()[i][0]));
+          robot.q()[i][0] += timeStep * (robot.alpha()[i][0] + Lp * (robot.q()[i][0] - realRobot.q()[i][0]));
           break;
         }
-        default:
+
+        case rbd::Joint::Free:
+        {
+          for(std::size_t j = 0; j < std::size_t(joints[i].dof()); ++j)
+          {
+            realRobot.alpha()[i][j] += timeStep * robot.alphaD()[i][j];
+          }
+
+          robot.alpha()[i] = realRobot.alpha()[i];
+
+          rbd::jointIntegration(joints[i].type(), robot.alpha()[i], robot.alphaD()[i], timeStep, realRobot.q()[i]);
+
+          robot.q()[i] = realRobot.q()[i];
+
           break;
+        }
+
+        // Planar, Cylindrical, Spherical, Fixed: no MuJoCo-style symplectic
+        // variant implemented here (they don't reduce to the simple
+        // "scalar velocity then scalar position" update used above). Rather
+        // than silently freezing them, fall back to RBDyn's own adaptive
+        // integrator so correctness is preserved even if such a joint
+        // appears on a robot in this scene.
+        case rbd::Joint::Planar:
+        case rbd::Joint::Cylindrical:
+        case rbd::Joint::Spherical:
+        case rbd::Joint::Fixed:
+        default:
+        {
+          for(std::size_t j = 0; j < std::size_t(joints[i].dof()); ++j)
+          {
+            robot.alpha()[i][j] +=
+                timeStep * (robot.alphaD()[i][j] + Lv * (robot.alpha()[i][j] - realRobot.alpha()[i][j]));
+          }
+          rbd::jointIntegration(joints[i].type(), robot.alpha()[i], robot.alphaD()[i], timeStep, robot.q()[i]);
+          for(std::size_t j = 0; j < std::size_t(joints[i].dof()); ++j)
+          {
+            robot.q()[i][j] += timeStep * Lp * (robot.q()[i][j] - realRobot.q()[i][j]);
+          }
+          break;
+        }
       }
     }
 
-    if(!lowPassFilterStateInitialized_)
+    if(openLoopRealFBlowPassFilterActive)
     {
-      qFiltered_ = robot.q();
-      alphaFiltered_ = robot.alpha();
-      lowPassFilterStateInitialized_ = true;
-      q_hist_.clear();
-      a_hist_.clear();
-      for(size_t i = 0; i < 2; ++i)
+      if(!lowPassFilterStateInitialized_)
       {
-        q_hist_.push_back(robot.q());
-        a_hist_.push_back(robot.alpha());
+        qFiltered_ = robot.q();
+        alphaFiltered_ = robot.alpha();
+        lowPassFilterStateInitialized_ = true;
+      }
+      else
+      {
+        double alpha = (M_PI * nyquistFraction) / (1.0 + M_PI * nyquistFraction);
+
+        for(std::size_t i = 0; i < joints.size(); ++i)
+        {
+          if(joints[i].type() == rbd::Joint::Free) { continue; }
+
+          for(std::size_t j = 0; j < std::size_t(joints[i].dof()); ++j)
+          {
+            qFiltered_[i][j] = qFiltered_[i][j] + alpha * (robot.q()[i][j] - qFiltered_[i][j]);
+            alphaFiltered_[i][j] = alphaFiltered_[i][j] + alpha * (robot.alpha()[i][j] - alphaFiltered_[i][j]);
+            robot.q()[i][j] = qFiltered_[i][j];
+            robot.alpha()[i][j] = alphaFiltered_[i][j];
+          }
+        }
       }
     }
     else
     {
-      // double alpha = (M_PI * nyquistFraction) /
-      //          (1.0 + M_PI * nyquistFraction);
-
-      // for(std::size_t i = 0; i < joints.size(); ++i)
-      // {
-      //   switch(joints[i].type())
-      //   {
-      //     case rbd::Joint::Rev:
-      //     case rbd::Joint::Prism:
-      //     {
-      //       qFiltered_[i][0] = qFiltered_[i][0] + alpha * (robot.q()[i][0] - qFiltered_[i][0]);
-      //       alphaFiltered_[i][0] = alphaFiltered_[i][0] + alpha * (robot.alpha()[i][0] - alphaFiltered_[i][0]);
-      //       robot.q()[i][0] = qFiltered_[i][0];
-      //       robot.alpha()[i][0] = alphaFiltered_[i][0];
-      //       break;
-      //     }
-      //     default:
-      //       break;
-      //   }
-      // }
-
-      // update raw history buffer: q_hist_[0] = x[k], q_hist_[1] = x[k-1]
-      q_hist_[1] = q_hist_[0];
-      a_hist_[1] = a_hist_[0];
-      q_hist_[0] = robot.q();
-      a_hist_[0] = robot.alpha();
-
-      // Tustin (bilinear-transform, pre-warped) one-pole low-pass:
-      //   tau  = tan(pi * nyquistFraction / 2)
-      //   coefB = tau / (1 + tau),   coefA = (1 - tau) / (1 + tau)
-      //   y[k] = coefB*(x[k] + x[k-1]) + coefA*y[k-1]
-      // Unlike the EMA above, this has an EXACT zero at Nyquist for any
-      // nyquistFraction, so it can be set well below 0.99 (e.g. 0.6-0.8) and
-      // still cut near-Nyquist content far more than the EMA ever did at 0.99.
-      double tau = std::tan(M_PI * nyquistFraction / 2.0);
-      double coefB = tau / (1.0 + tau);
-      double coefA = (1.0 - tau) / (1.0 + tau);
-
-      for(std::size_t i = 0; i < joints.size(); ++i)
-      {
-        switch(joints[i].type())
-        {
-          case rbd::Joint::Rev:
-          case rbd::Joint::Prism:
-          {
-            double q_filt = coefB * (q_hist_[0][i][0] + q_hist_[1][i][0]) + coefA * qFiltered_[i][0];
-            double a_filt = coefB * (a_hist_[0][i][0] + a_hist_[1][i][0]) + coefA * alphaFiltered_[i][0];
-
-            qFiltered_[i][0] = q_filt;
-            alphaFiltered_[i][0] = a_filt;
-
-            robot.q()[i][0] = q_filt;
-            robot.alpha()[i][0] = a_filt;
-            break;
-          }
-          default:
-            break;
-        }
-      }
+      lowPassFilterStateInitialized_ = false;
     }
 
-    const auto & realRobot = realRobots().robot(robot.robotIndex());
-    robot.q()[0] = realRobot.q()[0];
-    robot.alpha()[0] = realRobot.alpha()[0];
     robot.forwardKinematics();
     robot.forwardVelocity();
     robot.forwardAcceleration();
