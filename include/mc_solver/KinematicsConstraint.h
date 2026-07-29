@@ -53,11 +53,13 @@ public:
    * \param damperSecond Value of the damper {interaction distance, safety distance,
    * offset, amortization margin}
    * \param velocityPercent Maximum joint velocity percentage, 0.5 is advised
+   * \param activateConstraints If true, the constraint is activated
    */
   KinematicsConstraint(const mc_rbdyn::Robots & robots,
                        unsigned int robotIndex,
                        const std::array<double, 5> & damperSecond,
-                       double velocityPercent = 0.5);
+                       double velocityPercent = 0.5,
+                       bool activateConstraints = true);
 
 protected:
   /** Implementation of mc_solver::ConstraintSet::addToSolver */
@@ -76,6 +78,7 @@ protected:
    * The deleter carries the initial type of the constraint
    */
   mc_rtc::void_ptr constraint_;
+  bool activateConstraints_ = true;
 };
 
 } // namespace mc_solver

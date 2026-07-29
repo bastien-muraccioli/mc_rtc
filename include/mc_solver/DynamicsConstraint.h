@@ -73,12 +73,14 @@ public:
    * offset, amortization margin, lambda}
    * \param velocityPercent Maximum joint velocity percentage, 0.5 is advised
    * \param compensateExtTorques If true, external torques are added to the dynamic model constraint
+   * \param activateConstraints If true, the constraint is activated
    */
   DynamicsConstraint(const mc_rbdyn::Robots & robots,
                      unsigned int robotIndex,
                      const std::array<double, 5> & damperSecond,
                      double velocityPercent = 1.0,
-                     bool compensateExtTorques = true);
+                     bool compensateExtTorques = true,
+                     bool activateConstraints = true);
 
   /** \brief Update the constraint
    *
@@ -126,6 +128,7 @@ protected:
   mc_rtc::void_ptr motion_constr_;
   /** Robot index for the constraint */
   unsigned int robotIndex_;
+  bool activateConstraints_ = true;
 
 private:
   void addLogging(QPSolver & solver);

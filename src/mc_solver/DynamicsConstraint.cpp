@@ -167,9 +167,11 @@ DynamicsConstraint::DynamicsConstraint(const mc_rbdyn::Robots & robots,
                                        unsigned int robotIndex,
                                        const std::array<double, 5> & damperSecond,
                                        double velocityPercent,
-                                       bool compensateExtTorques)
-: KinematicsConstraint(robots, robotIndex, damperSecond, velocityPercent),
-  motion_constr_(initialize(backend_, robots, robotIndex, compensateExtTorques)), robotIndex_(robotIndex)
+                                       bool compensateExtTorques,
+                                       bool activateConstraints)
+: KinematicsConstraint(robots, robotIndex, damperSecond, velocityPercent, activateConstraints),
+  motion_constr_(initialize(backend_, robots, robotIndex, compensateExtTorques)), robotIndex_(robotIndex),
+  activateConstraints_(activateConstraints)
 {
 }
 
@@ -204,8 +206,21 @@ void DynamicsConstraint::addToSolverImpl(QPSolver & solver)
       auto & constraints_ = static_cast<TVMKinematicsConstraint *>(constraint_.get())->constraints_;
       auto & problem = tvm_solver(solver).problem();
       auto & tvm_robot = solver.robot(robotIndex_).tvmRobot();
-      auto tL = problem.add(tvm_robot.limits().tl <= tvm_robot.tau() <= tvm_robot.limits().tu,
-                            tvm::task_dynamics::None(), {tvm::requirements::PriorityLevel(0)});
+
+      auto tl_lim = tvm_robot.limits().tl;
+      auto tu_lim = tvm_robot.limits().tu;
+
+      if(!activateConstraints_)
+      {
+        // Keep 0 at the floating base and set the joint limits to infinity to effectively disable the constraints
+        tl_lim.head(tvm_robot.qFloatingBase()->size()).setZero();
+        tu_lim.head(tvm_robot.qFloatingBase()->size()).setZero();
+        tl_lim.tail(tvm_robot.qJoints()->size()).setConstant(-INFINITY);
+        tu_lim.tail(tvm_robot.qJoints()->size()).setConstant(INFINITY);
+      }
+
+      auto tL = problem.add(tl_lim <= tvm_robot.tau() <= tu_lim, tvm::task_dynamics::None(),
+                            {tvm::requirements::PriorityLevel(0)});
       constraints_.push_back(tL);
       mc_tvm::DynamicFunctionPtr dyn_fn = *static_cast<mc_tvm::DynamicFunctionPtr *>(motion_constr_.get());
       auto dyn = problem.add(dyn_fn == 0., tvm::task_dynamics::None(), {tvm::requirements::PriorityLevel(0)});

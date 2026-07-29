@@ -200,8 +200,10 @@ KinematicsConstraint::KinematicsConstraint(const mc_rbdyn::Robots & robots, unsi
 KinematicsConstraint::KinematicsConstraint(const mc_rbdyn::Robots & robots,
                                            unsigned int robotIndex,
                                            const std::array<double, 5> & damperSecond,
-                                           double velocityPercent)
-: constraint_(initialize(backend_, robots, robotIndex, damperSecond, velocityPercent))
+                                           double velocityPercent,
+                                           bool activateConstraints)
+: constraint_(initialize(backend_, robots, robotIndex, damperSecond, velocityPercent)),
+  activateConstraints_(activateConstraints)
 {
 }
 
@@ -276,6 +278,7 @@ void KinematicsConstraint::addToSolverImpl(mc_solver::QPSolver & solver)
           ->addToSolver(solver.robots().mbs(), static_cast<mc_solver::TasksQPSolver &>(solver).solver());
       break;
     case QPSolver::Backend::TVM:
+      if(!activateConstraints_) break;
       static_cast<TVMKinematicsConstraint *>(constraint_.get())->addToSolver(tvm_solver(solver));
       break;
     default:
