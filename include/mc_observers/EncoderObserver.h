@@ -14,6 +14,7 @@ namespace mc_observers
  *
  * Position is directly obtained from sensor values
  * Velocity is then computed by finite differences
+ * Joint torque is synced from robot.jointTorques()
  *
  * The default behaviour is to update the real robot from the estimated position and velocity.
  *
@@ -51,9 +52,10 @@ struct MC_OBSERVER_DLLAPI EncoderObserver : public Observer
   bool run(const mc_control::MCController & ctl) override;
 
   /** Update the real robot from the estimator state according to the observer's
-   * results
+   * results. Joint torque is always synced from sensor readings (or zeroed if
+   * unavailable) regardless of PosUpdate/VelUpdate configuration.
    *
-   * \see PosUpdate, VelUpdate for details on the method used for estimation
+   * \see PosUpdate, VelUpdate for details on the method used for position/velocity estimation
    */
   void update(mc_control::MCController & ctl) override;
 
@@ -76,9 +78,17 @@ protected:
     EncoderFiniteDifferences, ///< Joint velocity from finite differences of robot.encoderValues (encoder sensor)
     None ///< Do not compute/update value
   };
+  /*! Torque update type */
+  enum class TorqueUpdate
+  {
+    Control, ///< Use joint torques from robot.mbc.jointTorque (control)
+    JointTorques, ///< Joint torque from robot.jointTorques (torque sensor)
+    None ///< Do not compute/update value
+  };
 
   PosUpdate posUpdate_ = PosUpdate::EncoderValues;
   VelUpdate velUpdate_ = VelUpdate::EncoderFiniteDifferences;
+  TorqueUpdate torqueUpdate_ = TorqueUpdate::JointTorques;
   bool computeFK_ = true; ///< Whether to compute forward kinematics
   bool computeFV_ = true; ///< Whether to compute forward velocity
 
@@ -92,6 +102,7 @@ protected:
 
   bool logPosition_ = false;
   bool logVelocity_ = true;
+  bool logTorque_ = false;
 };
 
 } // namespace mc_observers
