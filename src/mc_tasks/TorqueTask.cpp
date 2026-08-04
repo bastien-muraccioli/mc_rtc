@@ -95,7 +95,7 @@ TorqueTask::TorqueTask(const mc_solver::QPSolver & solver,
 
   eval_ = this->eval();
   speed_ = Eigen::VectorXd::Zero(eval_.size());
-  torque_vector_ = Eigen::VectorXd::Zero(int(robots_.robot(rIndex_).refJointOrder().size()));
+  torque_vector_ = Eigen::VectorXd::Zero(int(robots_.robot(rIndex_).mb().nrDof()));
   type_ = "torque";
   name_ = std::string("torque_") + robots_.robot(rIndex_).name();
   for(const auto & j : robots_.robot(rIndex_).mb().joints())
@@ -293,12 +293,7 @@ void TorqueTask::torqueTarget(const std::vector<std::vector<double>> & tau)
   torque_ = tau;
   auto & robot = robots_.robot(rIndex_);
   std::vector<std::string> refOrder = robot.refJointOrder();
-  // torque_vector_ = rbd::sDofToVector(robots_.robot(rIndex_).mb(), tau);
-  for(size_t i = 0; i < refOrder.size(); ++i)
-  {
-    int mbcIndex = robot.jointIndexInMBC(i);
-    if(mbcIndex >= 0) { torque_vector_[int(i)] = torque_[size_t(mbcIndex)][0]; }
-  }
+  torque_vector_ = rbd::dofToVector(robots_.robot(rIndex_).mb(), torque_);
 
   switch(backend_)
   {
@@ -467,7 +462,11 @@ void TorqueTask::addToLogger(mc_rtc::Logger & logger)
 {
   logger.addLogEntry(name_ + "_eval", this, [this]() { return eval(); });
   logger.addLogEntry(name_ + "_speed", this, [this]() { return speed(); });
-  logger.addLogEntry(name_ + "_torqueTarget", this, [this]() { return torqueTargetVector(); });
+  for(int dof = 0; dof < torque_vector_.size(); ++dof)
+  {
+    const auto & dofName = robots_.robot(rIndex_).refDofOrder()[size_t(dof)];
+    logger.addLogEntry(name_ + "_torqueTarget_" + dofName, this, [this, dof]() { return torque_vector_[dof]; });
+  }
   logger.addLogEntry(name_ + "_compensateExternalForces", this, [this]() { return isCompensatingExternalForces(); });
   logger.addLogEntry(name_ + "_compensateGravity", this, [this]() { return isCompensatingGravity(); });
   logger.addLogEntry(name_ + "_weight", this, [this]() { return weight(); });
