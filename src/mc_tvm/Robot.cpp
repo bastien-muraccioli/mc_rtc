@@ -21,7 +21,7 @@ static inline void updateVar(const std::vector<std::vector<double>> & value, tvm
 }
 
 Robot::Robot(NewRobotToken, const mc_rbdyn::Robot & robot)
-: robot_(robot), normalAccB_(robot.mbc().bodyAccB.size(), sva::MotionVecd::Zero()), fd_(robot.mb())
+: robot_(robot), normalAccB_(robot.mbc().bodyAccB.size(), sva::MotionVecd::Zero()), fd_(robot.mb()), fdReal_(robot.mb())
 {
   limits_.ql = rbd::paramToVector(robot_.mb(), robot_.ql());
   limits_.qu = rbd::paramToVector(robot_.mb(), robot_.qu());
@@ -161,7 +161,8 @@ Robot::Robot(NewRobotToken, const mc_rbdyn::Robot & robot)
   /** Signal setup */
   registerUpdates(Update::FK, &Robot::updateFK, Update::FV, &Robot::updateFV, Update::FA, &Robot::updateFA,
                   Update::NormalAcceleration, &Robot::updateNormalAcceleration, Update::H, &Robot::updateH, Update::C,
-                  &Robot::updateC, Update::ExternalForces, &Robot::updateExternalForces);
+                  &Robot::updateC, Update::RealH, &Robot::updateRealH, Update::RealC, &Robot::updateRealC,
+                  Update::ExternalForces, &Robot::updateExternalForces);
   /** Output dependencies setup */
   addOutputDependency(Output::FK, Update::FK);
   addOutputDependency(Output::FV, Update::FV);
@@ -169,6 +170,8 @@ Robot::Robot(NewRobotToken, const mc_rbdyn::Robot & robot)
   addOutputDependency(Output::NormalAcceleration, Update::NormalAcceleration);
   addOutputDependency(Output::H, Update::H);
   addOutputDependency(Output::C, Update::C);
+  addOutputDependency(Output::RealH, Update::RealH);
+  addOutputDependency(Output::RealC, Update::RealC);
   addOutputDependency(Output::FV, Update::FV);
   addOutputDependency(Output::ExternalForces, Update::ExternalForces);
   /** Internal dependencies setup */
@@ -222,6 +225,16 @@ void Robot::updateH()
 void Robot::updateC()
 {
   fd_.computeC(robot_.mb(), robot_.mbc());
+}
+
+void Robot::updateRealH()
+{
+  fdReal_.computeH(realRobot().mb(), realRobot().mbc());
+}
+
+void Robot::updateRealC()
+{
+  fdReal_.computeC(realRobot().mb(), realRobot().mbc());
 }
 
 tvm::VariablePtr Robot::qJoint(size_t jIdx)

@@ -101,10 +101,10 @@ static mc_rtc::void_ptr initialize_tasks(const mc_rbdyn::Robots & robots,
   }
 }
 
-mc_rtc::void_ptr initialize_tvm(const mc_rbdyn::Robot & robot, bool compensateExtTorques)
+mc_rtc::void_ptr initialize_tvm(const mc_rbdyn::Robot & robot, bool compensateExtTorques, bool real)
 {
   return mc_rtc::make_void_ptr<mc_tvm::DynamicFunctionPtr>(
-      std::make_shared<mc_tvm::DynamicFunction>(robot, compensateExtTorques));
+      std::make_shared<mc_tvm::DynamicFunction>(robot, compensateExtTorques, real));
 }
 
 static mc_rtc::void_ptr initialize(QPSolver::Backend backend,
@@ -112,14 +112,15 @@ static mc_rtc::void_ptr initialize(QPSolver::Backend backend,
                                    unsigned int robotIndex,
                                    double timeStep,
                                    bool infTorque,
-                                   bool compensateExtTorques)
+                                   bool compensateExtTorques,
+                                   bool real)
 {
   switch(backend)
   {
     case QPSolver::Backend::Tasks:
       return initialize_tasks(robots, robotIndex, timeStep, infTorque, compensateExtTorques);
     case QPSolver::Backend::TVM:
-      return initialize_tvm(robots.robot(robotIndex), compensateExtTorques);
+      return initialize_tvm(robots.robot(robotIndex), compensateExtTorques, real);
     default:
       mc_rtc::log::error_and_throw("[DynamicsConstraint] Not implemented for solver backend: {}", backend);
   }
@@ -128,12 +129,13 @@ static mc_rtc::void_ptr initialize(QPSolver::Backend backend,
 static mc_rtc::void_ptr initialize(QPSolver::Backend backend,
                                    const mc_rbdyn::Robots & robots,
                                    unsigned int robotIndex,
-                                   bool compensateExtTorques)
+                                   bool compensateExtTorques,
+                                   bool real)
 {
   switch(backend)
   {
     case QPSolver::Backend::TVM:
-      return initialize_tvm(robots.robot(robotIndex), compensateExtTorques);
+      return initialize_tvm(robots.robot(robotIndex), compensateExtTorques, real);
     default:
       mc_rtc::log::error_and_throw("[DynamicsConstraint] Not implemented for solver backend: {}", backend);
   }
@@ -143,10 +145,11 @@ DynamicsConstraint::DynamicsConstraint(const mc_rbdyn::Robots & robots,
                                        unsigned int robotIndex,
                                        double timeStep,
                                        bool infTorque,
-                                       bool compensateExtTorques)
+                                       bool compensateExtTorques,
+                                       bool real)
 : KinematicsConstraint(robots, robotIndex, timeStep),
-  motion_constr_(initialize(backend_, robots, robotIndex, timeStep, infTorque, compensateExtTorques)),
-  robotIndex_(robotIndex)
+  motion_constr_(initialize(backend_, robots, robotIndex, timeStep, infTorque, compensateExtTorques, real)),
+  robotIndex_(robotIndex), real_(real)
 {
 }
 
@@ -156,10 +159,11 @@ DynamicsConstraint::DynamicsConstraint(const mc_rbdyn::Robots & robots,
                                        const std::array<double, 3> & damper,
                                        double velocityPercent,
                                        bool infTorque,
-                                       bool compensateExtTorques)
+                                       bool compensateExtTorques,
+                                       bool real)
 : KinematicsConstraint(robots, robotIndex, timeStep, damper, velocityPercent),
-  motion_constr_(initialize(backend_, robots, robotIndex, timeStep, infTorque, compensateExtTorques)),
-  robotIndex_(robotIndex)
+  motion_constr_(initialize(backend_, robots, robotIndex, timeStep, infTorque, compensateExtTorques, real)),
+  robotIndex_(robotIndex), real_(real)
 {
 }
 
@@ -167,9 +171,12 @@ DynamicsConstraint::DynamicsConstraint(const mc_rbdyn::Robots & robots,
                                        unsigned int robotIndex,
                                        const std::array<double, 5> & damperSecond,
                                        double velocityPercent,
-                                       bool compensateExtTorques)
-: KinematicsConstraint(robots, robotIndex, damperSecond, velocityPercent),
-  motion_constr_(initialize(backend_, robots, robotIndex, compensateExtTorques)), robotIndex_(robotIndex)
+                                       bool compensateExtTorques,
+                                       bool activateConstraints,
+                                       bool real)
+: KinematicsConstraint(robots, robotIndex, damperSecond, velocityPercent, activateConstraints),
+  motion_constr_(initialize(backend_, robots, robotIndex, compensateExtTorques, real)), robotIndex_(robotIndex),
+  activateConstraints_(activateConstraints), real_(real)
 {
 }
 
@@ -204,8 +211,21 @@ void DynamicsConstraint::addToSolverImpl(QPSolver & solver)
       auto & constraints_ = static_cast<TVMKinematicsConstraint *>(constraint_.get())->constraints_;
       auto & problem = tvm_solver(solver).problem();
       auto & tvm_robot = solver.robot(robotIndex_).tvmRobot();
-      auto tL = problem.add(tvm_robot.limits().tl <= tvm_robot.tau() <= tvm_robot.limits().tu,
-                            tvm::task_dynamics::None(), {tvm::requirements::PriorityLevel(0)});
+
+      auto tl_lim = tvm_robot.limits().tl;
+      auto tu_lim = tvm_robot.limits().tu;
+
+      if(!activateConstraints_)
+      {
+        // Keep 0 at the floating base and set the joint limits to infinity to effectively disable the constraints
+        tl_lim.head(tvm_robot.qFloatingBase()->size()).setZero();
+        tu_lim.head(tvm_robot.qFloatingBase()->size()).setZero();
+        tl_lim.tail(tvm_robot.qJoints()->size()).setConstant(-INFINITY);
+        tu_lim.tail(tvm_robot.qJoints()->size()).setConstant(INFINITY);
+      }
+
+      auto tL = problem.add(tl_lim <= tvm_robot.tau() <= tu_lim, tvm::task_dynamics::None(),
+                            {tvm::requirements::PriorityLevel(0)});
       constraints_.push_back(tL);
       mc_tvm::DynamicFunctionPtr dyn_fn = *static_cast<mc_tvm::DynamicFunctionPtr *>(motion_constr_.get());
       auto dyn = problem.add(dyn_fn == 0., tvm::task_dynamics::None(), {tvm::requirements::PriorityLevel(0)});

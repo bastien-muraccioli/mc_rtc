@@ -35,8 +35,26 @@ public:
   DISABLE_OUTPUTS(Output::JDot)
   SET_UPDATES(DynamicFunction, Jacobian, B)
 
-  /** Construct the equation of motion for a given robot */
-  DynamicFunction(const mc_rbdyn::Robot & robot, bool compensateExternalForces = true);
+  /** Construct the equation of motion for a given robot
+   *
+   * \param robot Robot for which the equation of motion is built
+   *
+   * \param compensateExternalForces If true, subtract the estimated (or
+   * compensation) external torques from the equation of motion
+   *
+   * \param real If true, the mass matrix (H) and non-linear effect vector (C)
+   * used in the equation of motion are evaluated on \p robot's associated
+   * real robot state (\see mc_rbdyn::Robot::realRobot) instead of \p robot's
+   * own (control) state.
+   *
+   * \note The tau/alphaD variables solved for remain those of \p robot (the
+   * control robot), as do the contact Jacobians and the external/compensation
+   * torques used when \p compensateExternalForces is true.
+   *
+   * \throws If \p real is true and \p robot has no associated real robot set
+   * (\see mc_rbdyn::Robot::hasRealRobot)
+   */
+  DynamicFunction(const mc_rbdyn::Robot & robot, bool compensateExternalForces = true, bool real = false);
 
   /** Add a contact to the function
    *
@@ -83,6 +101,8 @@ protected:
 
   const mc_rbdyn::Robot & robot_;
   const bool compensateExternalForces_;
+  /** If true, H and C are evaluated on the real robot's state (\see DynamicFunction::DynamicFunction) */
+  const bool real_;
   Eigen::VectorXd contactTorque_;
 
   /** Holds data for the force part of the motion equation */

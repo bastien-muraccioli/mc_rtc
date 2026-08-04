@@ -683,6 +683,13 @@ struct MC_RBDYN_DLLAPI RobotModule
    */
   const std::vector<std::string> & ref_joint_order() const { return _ref_joint_order; }
 
+  /** Return the reference (native controller) dof order of the robot
+   *
+   * If it is empty, \ref make_default_ref_dof_order() will be used to
+   * generate one
+   */
+  const std::vector<std::string> & ref_dof_order() const { return _ref_dof_order; }
+
   /** Return the default attitude of the floating base
    *
    * This attitute is associated to the \ref stance() configuration
@@ -720,6 +727,14 @@ struct MC_RBDYN_DLLAPI RobotModule
    *
    */
   void make_default_ref_joint_order();
+
+  /** Make a valid ref_dof_order
+   *
+   * If \ref ref_dof_order() is empty, this will generate a list of actuated
+   * dofs in the order they appear in the kinematic tree
+   *
+   */
+  void make_default_ref_dof_order();
 
   /** Returns a list of compound joint constraint description
    *
@@ -833,6 +848,8 @@ public:
   Gripper::Safety _gripperSafety;
   /** \see ref_joint_order() */
   std::vector<std::string> _ref_joint_order;
+  /** \see ref_dof_order() */
+  std::vector<std::string> _ref_dof_order;
   /** \see default_attitude() */
   std::array<double, 7> _default_attitude = {{1., 0., 0., 0., 0., 0., 0.}};
   /** \see compoundJoints() */

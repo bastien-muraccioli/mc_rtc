@@ -654,6 +654,9 @@ public:
   /** Return the reference joint order for this robot */
   inline const std::vector<std::string> & refJointOrder() const { return data_->refJointOrder; }
 
+  /** Return the reference dof order for this robot */
+  inline const std::vector<std::string> & refDofOrder() const { return data_->refDofOrder; }
+
   /** @} */
   /* End Joints sensors section */
 

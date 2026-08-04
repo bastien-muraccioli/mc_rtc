@@ -12,7 +12,9 @@
 
 #include <mc_rtc/pragma.h>
 
+#include <Eigen/src/Core/Matrix.h>
 #include <memory>
+#include <vector>
 
 namespace mc_tasks
 {
@@ -302,6 +304,12 @@ public:
   inline mc_control::MCController * controller() noexcept { return controller_; }
 
   void setNyquistFraction(double fraction) noexcept { nyquistFraction = fraction; }
+  void setOpenLoopRealFBlowPassFilterActive(bool active) noexcept { openLoopRealFBlowPassFilterActive = active; }
+
+  void setLv(const double Lv) noexcept { this->Lv = Lv; }
+  void setLp(const double Lp) noexcept { this->Lp = Lp; }
+  double getLv() const noexcept { return Lv; }
+  double getLp() const noexcept { return Lp; }
 
 protected:
   Backend backend_;
@@ -342,6 +350,10 @@ protected:
   virtual void removeDynamicsConstraint(mc_solver::ConstraintSet * maybe_dynamics) = 0;
 
   double nyquistFraction = 0.95; // 95% of Nyquist
+  bool openLoopRealFBlowPassFilterActive = false;
+
+  double Lv = 20.0;
+  double Lp = 50.0;
 };
 
 } // namespace mc_solver

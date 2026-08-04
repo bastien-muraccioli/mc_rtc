@@ -10,6 +10,8 @@
 
 #include <mc_rbdyn/Robot.h>
 
+#include <mc_rtc/logging.h>
+
 #include <tvm/Variable.h>
 #include <tvm/VariableVector.h>
 #include <tvm/graph/abstract/Node.h>
@@ -40,6 +42,8 @@ namespace mc_tvm
  * - tau: generalized torque vector
  * - H: inertia matrix signal, depends on FV
  * - C: non-linear effect vector signal (Coriolis, gravity, external forces), depends on FV
+ * - RealH: inertia matrix signal evaluated on the associated real robot's state
+ * - RealC: non-linear effect vector signal evaluated on the associated real robot's state
  *
  * Meta outputs:
  *   These outputs are provided for convenience sake
@@ -49,8 +53,8 @@ namespace mc_tvm
  */
 struct MC_TVM_DLLAPI Robot : public tvm::graph::abstract::Node<Robot>
 {
-  SET_OUTPUTS(Robot, FK, FV, FA, NormalAcceleration, tau, H, C, ExternalForces)
-  SET_UPDATES(Robot, FK, FV, FA, NormalAcceleration, H, C, ExternalForces)
+  SET_OUTPUTS(Robot, FK, FV, FA, NormalAcceleration, tau, H, C, RealH, RealC, ExternalForces)
+  SET_UPDATES(Robot, FK, FV, FA, NormalAcceleration, H, C, RealH, RealC, ExternalForces)
 
   friend struct mc_rbdyn::Robot;
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -76,6 +80,30 @@ public:
    * \throws If the original robot has been destroyed
    */
   inline const mc_rbdyn::Robot & robot() const { return robot_; }
+
+  /** Set the "real" counterpart of the associated robot (i.e. the robot
+   * instance reflecting the observed/estimated state of the system as
+   * opposed to the control state)
+   *
+   * This is normally set once by whichever code pairs a set of control
+   * robots with a set of real robots (e.g. \ref mc_solver::QPSolver)
+   *
+   * \param real The real counterpart of the associated robot
+   */
+  inline void realRobot(const mc_rbdyn::Robot & real) noexcept { realRobot_ = &real; }
+
+  /** Whether a real counterpart has been set via \ref realRobot(const mc_rbdyn::Robot&) */
+  inline bool hasRealRobot() const noexcept { return realRobot_ != nullptr; }
+
+  /** Access the "real" counterpart of the associated robot
+   *
+   * \throws If no real counterpart has been set (\see hasRealRobot)
+   */
+  inline const mc_rbdyn::Robot & realRobot() const
+  {
+    if(!realRobot_) { mc_rtc::log::error_and_throw("[mc_tvm::Robot] No real robot set for {}", robot_.name()); }
+    return *realRobot_;
+  }
 
   /** Retrieve the joint limits (const) */
   inline const Limits & limits() const noexcept { return limits_; }
@@ -174,6 +202,18 @@ public:
   /** Returns the non-linear dynamics component */
   inline const Eigen::VectorXd & C() const noexcept { return fd_.C(); }
 
+  /** Returns the mass matrix computed from the real robot's state
+   *
+   * \throws If this robot has no real counterpart (\see hasRealRobot)
+   */
+  inline const Eigen::MatrixXd & realH() const noexcept { return fdReal_.H(); }
+
+  /** Returns the non-linear dynamics component computed from the real robot's state
+   *
+   * \throws If this robot has no real counterpart (\see hasRealRobot)
+   */
+  inline const Eigen::VectorXd & realC() const noexcept { return fdReal_.C(); }
+
   /** Vector of normal acceleration in body coordinates */
   inline const std::vector<sva::MotionVecd> & normalAccB() const noexcept { return normalAccB_; }
 
@@ -211,6 +251,8 @@ public:
 private:
   /** Parent instance */
   const mc_rbdyn::Robot & robot_;
+  /** Real counterpart of robot_, set via \ref realRobot(const mc_rbdyn::Robot&), not owned */
+  const mc_rbdyn::Robot * realRobot_ = nullptr;
   /** Joint limits */
   Limits limits_;
   /** Floating-base variable */
@@ -239,6 +281,8 @@ private:
   std::vector<sva::MotionVecd> normalAccB_;
   /** Forward dynamics algorithm associated to this robot */
   rbd::ForwardDynamics fd_;
+  /** Forward dynamics algorithm evaluated on the real robot's state (\see updateRealH, updateRealC) */
+  rbd::ForwardDynamics fdReal_;
   /** CoM algorithm of this robot */
   CoMPtr com_;
   /** Momentum algorithm of this robot */
@@ -255,6 +299,8 @@ private:
   void updateNormalAcceleration();
   void updateH();
   void updateC();
+  void updateRealH();
+  void updateRealC();
   void updateExternalForces();
 };
 

@@ -23,9 +23,12 @@
 #include <mc_solver/ConstraintSetLoader.h>
 #include <mc_solver/TVMQPSolver.h>
 #include <mc_solver/TasksQPSolver.h>
+#include <mc_tvm/Robot.h>
 
 #include <RBDyn/FK.h>
 #include <RBDyn/FV.h>
+#include <SpaceVecAlg/EigenTypedef.h>
+#include <SpaceVecAlg/SpaceVecAlg>
 
 #include <filesystem>
 namespace fs = std::filesystem;
@@ -220,6 +223,7 @@ MCController::MCController(const std::vector<std::shared_ptr<mc_rbdyn::RobotModu
       if(!hasRobot(robotName)) return;
       auto & robot = robots().robot(robotName);
       auto & realRobot = realRobots().robot(robotName);
+      robot.tvmRobot().realRobot(realRobot);
       /** Set initial robot base pose */
       if(config.has("init_pos"))
       {
@@ -595,14 +599,55 @@ void MCController::addRobotToLog(const mc_rbdyn::Robot & r)
                            }
                            return tauOut;
                          });
+
+    for(size_t i = 0; i < robot(name).refDofOrder().size(); ++i)
+    {
+      logger().addLogEntry(entry_str("tauExternal_" + robot(name).refDofOrder()[i]),
+                           [this, name, i]() -> double { return robot(name).externalTorques()[i]; });
+    }
   }
-  // Log the floating base position and its estimation if the robot has one
+  // Log the floating base state and its estimation if the robot has one
   if(robot(name).mb().joint(0).dof() == 6)
   {
-    logger().addLogEntry(entry("ff"),
-                         [this, name]() -> const sva::PTransformd & { return outputRobot(name).mbc().bodyPosW[0]; });
-    logger().addLogEntry(entry("ff_real"), [this, name]() -> const sva::PTransformd &
-                         { return outputRealRobot(name).mbc().bodyPosW[0]; });
+    logger().addLogEntry(entry("ffOut_position"),
+                         [this, name]() -> sva::PTransformd
+                         {
+                           auto & qOut_fb = outputRobot(name).mbc().q[0];
+                           return sva::PTransformd(Eigen::Quaterniond(qOut_fb[0], qOut_fb[1], qOut_fb[2], qOut_fb[3]),
+                                                   Eigen::Map<const Eigen::Vector3d>(qOut_fb.data() + 4));
+                         });
+    logger().addLogEntry(entry("ffOut_velocity"),
+                         [this, name]() -> sva::MotionVecd
+                         {
+                           auto & alphaOut_fb = outputRobot(name).mbc().alpha[0];
+                           return sva::MotionVecd(Eigen::Map<const Eigen::Vector6d>(alphaOut_fb.data()));
+                         });
+    logger().addLogEntry(entry("ffOut_acceleration"),
+                         [this, name]() -> sva::MotionVecd
+                         {
+                           auto & alphaDOut_fb = outputRobot(name).mbc().alphaD[0];
+                           return sva::MotionVecd(Eigen::Map<const Eigen::Vector6d>(alphaDOut_fb.data()));
+                         });
+
+    logger().addLogEntry(entry("ffIn_position"),
+                         [this, name]() -> sva::PTransformd
+                         {
+                           auto & qIn_fb = outputRealRobot(name).mbc().q[0];
+                           return sva::PTransformd(Eigen::Quaterniond(qIn_fb[0], qIn_fb[1], qIn_fb[2], qIn_fb[3]),
+                                                   Eigen::Map<const Eigen::Vector3d>(qIn_fb.data() + 4));
+                         });
+    logger().addLogEntry(entry("ffIn_velocity"),
+                         [this, name]() -> sva::MotionVecd
+                         {
+                           auto & alphaIn_fb = outputRealRobot(name).mbc().alpha[0];
+                           return sva::MotionVecd(Eigen::Map<const Eigen::Vector6d>(alphaIn_fb.data()));
+                         });
+    logger().addLogEntry(entry("ffIn_acceleration"),
+                         [this, name]() -> sva::MotionVecd
+                         {
+                           auto & alphaDIn_fb = outputRealRobot(name).mbc().alphaD[0];
+                           return sva::MotionVecd(Eigen::Map<const Eigen::Vector6d>(alphaDIn_fb.data()));
+                         });
   }
   // Log all force sensors
   for(const auto & fs : robot(name).forceSensors())
@@ -661,11 +706,19 @@ void MCController::removeRobot(const std::string & name)
       logger().removeLogEntry(entry("alphaOut"));
       logger().removeLogEntry(entry("alphaDOut"));
       logger().removeLogEntry(entry("tauOut"));
+      for(size_t i = 0; i < robot.refDofOrder().size(); ++i)
+      {
+        logger().removeLogEntry(entry_str("tauExternal_" + robot.refDofOrder()[i]));
+      }
     }
     if(robot.mb().joint(0).dof() == 6)
     {
-      logger().removeLogEntry(entry("ff"));
-      logger().removeLogEntry(entry("ff_real"));
+      logger().removeLogEntry(entry("ffOut_position"));
+      logger().removeLogEntry(entry("ffOut_velocity"));
+      logger().removeLogEntry(entry("ffOut_acceleration"));
+      logger().removeLogEntry(entry("ffIn_position"));
+      logger().removeLogEntry(entry("ffIn_velocity"));
+      logger().removeLogEntry(entry("ffIn_acceleration"));
     }
     for(const auto & fs : robot.forceSensors()) { logger().removeLogEntry(entry_str(fs.name())); }
     for(const auto & bs : robot.bodySensors())
