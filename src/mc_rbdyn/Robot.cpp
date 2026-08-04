@@ -501,7 +501,11 @@ Robot::Robot(NewRobotToken,
     }
   }
 
-  if(!params.data_) { data_->refJointOrder = module_.ref_joint_order(); }
+  if(!params.data_)
+  {
+    data_->refJointOrder = module_.ref_joint_order();
+    data_->refDofOrder = module_.ref_dof_order();
+  }
   const auto & refJointOrder_ = data_->refJointOrder;
   refJointIndexToMBCIndex_.resize(refJointOrder_.size());
   for(size_t i = 0; i < refJointOrder_.size(); ++i)

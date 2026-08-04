@@ -47,7 +47,7 @@ void TorqueFunction::updateb() // Ax + b = 0
 void TorqueFunction::reset()
 {
   torque_mc_rtc_ = robot_.mbc().jointTorque;
-  torque_ = rbd::sDofToVector(robot_.mb(), torque_mc_rtc_);
+  torque_ = rbd::dofToVector(robot_.mb(), torque_mc_rtc_);
   torque_extForces_ = robot_.tvmRobot().tauExternal();
   torque_gravity_ = robot_.tvmRobot().C();
 }
@@ -67,7 +67,7 @@ void TorqueFunction::torque(const std::string & j, const std::vector<double> & t
     return;
   }
   torque_mc_rtc_[static_cast<size_t>(jIndex)] = tau;
-  torque_ = rbd::sDofToVector(robot_.mb(), torque_mc_rtc_);
+  torque_ = rbd::dofToVector(robot_.mb(), torque_mc_rtc_);
 }
 
 bool TorqueFunction::isValidTorque(const std::vector<std::vector<double>> & ref,
@@ -89,7 +89,7 @@ void TorqueFunction::torque(const std::vector<std::vector<double>> & tau)
     return;
   }
   torque_mc_rtc_ = tau;
-  torque_ = rbd::sDofToVector(robot_.mb(), torque_mc_rtc_);
+  torque_ = rbd::dofToVector(robot_.mb(), torque_mc_rtc_);
 }
 
 } // namespace mc_tvm

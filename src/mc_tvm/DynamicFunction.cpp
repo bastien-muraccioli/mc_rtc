@@ -7,20 +7,36 @@
 #include <mc_tvm/Robot.h>
 #include <mc_tvm/RobotFrame.h>
 
+#include <mc_rtc/logging.h>
+
 namespace mc_tvm
 {
 
-DynamicFunction::DynamicFunction(const mc_rbdyn::Robot & robot, bool compensateExternalForces)
+DynamicFunction::DynamicFunction(const mc_rbdyn::Robot & robot, bool compensateExternalForces, bool real)
 : tvm::function::abstract::LinearFunction(robot.mb().nrDof()), robot_(robot),
-  compensateExternalForces_(compensateExternalForces), contactTorque_(robot.mb().nrDof())
+  compensateExternalForces_(compensateExternalForces), real_(real), contactTorque_(robot.mb().nrDof())
 {
   registerUpdates(Update::B, &DynamicFunction::updateb);
   registerUpdates(Update::Jacobian, &DynamicFunction::updateJacobian);
   addOutputDependency<DynamicFunction>(Output::B, Update::B);
   addOutputDependency<DynamicFunction>(Output::Jacobian, Update::Jacobian);
   auto & tvm_robot = robot.tvmRobot();
-  addInputDependency<DynamicFunction>(Update::Jacobian, tvm_robot, Robot::Output::H);
-  addInputDependency<DynamicFunction>(Update::B, tvm_robot, Robot::Output::C);
+  if(real_ && !tvm_robot.hasRealRobot())
+  {
+    mc_rtc::log::error_and_throw(
+        "[mc_tvm::DynamicFunction] Requested dynamics on the real robot for {} but it has no real robot set",
+        robot_.name());
+  }
+  if(real_)
+  {
+    addInputDependency<DynamicFunction>(Update::Jacobian, tvm_robot, Robot::Output::RealH);
+    addInputDependency<DynamicFunction>(Update::B, tvm_robot, Robot::Output::RealC);
+  }
+  else
+  {
+    addInputDependency<DynamicFunction>(Update::Jacobian, tvm_robot, Robot::Output::H);
+    addInputDependency<DynamicFunction>(Update::B, tvm_robot, Robot::Output::C);
+  }
   if(compensateExternalForces_)
   {
     addInputDependency<DynamicFunction>(Update::B, tvm_robot, Robot::Output::ExternalForces);
@@ -108,9 +124,10 @@ sva::ForceVecd DynamicFunction::contactForce(const mc_rbdyn::RobotFrame & frame)
 
 void DynamicFunction::updateb()
 {
-  b_ = robot_.tvmRobot().C();
+  b_ = real_ ? robot_.tvmRobot().realC() : robot_.tvmRobot().C();
   if(compensateExternalForces_)
   {
+    // External/compensation torques always come from the control robot, regardless of real_
     if(robot_.tvmRobot().tauCompensation()) { b_ -= robot_.tvmRobot().tauCompensation().value(); }
     else
     {
@@ -122,8 +139,9 @@ void DynamicFunction::updateb()
 void DynamicFunction::updateJacobian()
 {
   const auto & robot = robot_.tvmRobot();
-  splitJacobian(robot.H(), robot.alphaD());
+  splitJacobian(real_ ? robot.realH() : robot.H(), robot.alphaD());
   contactTorque_.setZero();
+  // Contact Jacobians always come from the control robot's kinematics, regardless of real_
   for(auto & c : contacts_) { c.updateJacobians(*this); }
 }
 

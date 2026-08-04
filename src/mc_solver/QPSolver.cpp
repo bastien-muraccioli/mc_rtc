@@ -10,6 +10,8 @@
 #include <mc_rbdyn/Surface.h>
 #include <mc_tasks/MetaTask.h>
 
+#include <mc_tvm/Robot.h>
+
 #include <mc_rtc/gui/Button.h>
 #include <mc_rtc/gui/Force.h>
 #include <mc_rtc/gui/Form.h>
@@ -40,7 +42,16 @@ QPSolver::QPSolver(mc_rbdyn::RobotsPtr robots, double timeStep, Backend backend)
     mc_rtc::log::error_and_throw<std::invalid_argument>("timeStep has to be > 0! timeStep = {}", timeStep);
   }
   realRobots_p = mc_rbdyn::Robots::make();
-  for(const auto & robot : *robots) { realRobots_p->robotCopy(robot, robot.name()); }
+  for(auto & robot : *robots)
+  {
+    realRobots_p->robotCopy(robot, robot.name());
+    // Link the control robot's TVM robot to its real counterpart (used e.g. by
+    // mc_tvm::DynamicFunction when constructed with real = true)
+    // robot.tvmRobot().realRobot(realRobots_p->robot(robot.name()));
+    // if (robot.tvmRobot().hasRealRobot()) mc_rtc::log::info("[QPSolver] Linked control robot {} to its real
+    // counterpart", robot.name()); else mc_rtc::log::info("[QPSolver] Control robot {} has no real counterpart",
+    // robot.name());
+  }
 }
 
 QPSolver::QPSolver(double timeStep, Backend backend) : QPSolver{mc_rbdyn::Robots::make(), timeStep, backend} {}

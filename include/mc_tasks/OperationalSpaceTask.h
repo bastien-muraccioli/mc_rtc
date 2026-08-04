@@ -188,6 +188,13 @@ private:
 
   bool deriveVelocityTargetFromPosition_ = false;
   sva::PTransformd prevPosTarget_;
+
+  rbd::Jacobian frameJac_;
+  Eigen::MatrixXd jacMat_;
+  Eigen::MatrixXd dynamicJacTransposeLocal_; // (J^#)^T = Λ J M^{-1}, computed fresh every update()
+  Eigen::Matrix6d cartesianInertiaLocal_; // Λ = (J M^{-1} J^T)^{-1}, computed fresh every update()
+  Eigen::MatrixXd shortJacMat_;
+  void computeDynamicJacobian();
 };
 
 } // namespace mc_tasks

@@ -34,8 +34,8 @@ WrenchFunction::WrenchFunction(const mc_rbdyn::RobotFrame & frame)
 
   addInputDependency<WrenchFunction>(Update::Jacobian, tvm_robot, Robot::Output::H);
   addInternalDependency<WrenchFunction>(Update::Jacobian, Update::B);
-  // addInputDependency<WrenchFunction>(Update::B, tvm_frame_, mc_tvm::RobotFrame::Output::Jacobian);
   addInputDependency<WrenchFunction>(Update::Jacobian, tvm_frame_, mc_tvm::RobotFrame::Output::Jacobian);
+  addInputDependency<WrenchFunction>(Update::B, tvm_frame_, mc_tvm::RobotFrame::Output::NormalAcceleration);
   addInputDependency<WrenchFunction>(Update::B, tvm_robot, Robot::Output::C);
   addInputDependency<WrenchFunction>(Update::B, tvm_robot, Robot::Output::tau);
   addVariable(tvm::dot(tvm_robot.q(), 2), true);

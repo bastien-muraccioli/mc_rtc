@@ -31,12 +31,15 @@ public:
    * \param compensateExtTorques If true, compensates external disturbances using a feedforward torque signal. The
    * constraint will search for the compensation value in robot by calling `compensationTorques()` method, if not an
    * estimation of external torques acting on the robot will be used by calling `externalTorques()` method.
+   * \param real If true (TVM backend only), the equation of motion (H and C) is evaluated on the robot's real
+   * counterpart instead of the control robot. Has no effect on the Tasks backend.
    */
   DynamicsConstraint(const mc_rbdyn::Robots & robots,
                      unsigned int robotIndex,
                      double timeStep,
                      bool infTorque = false,
-                     bool compensateExtTorques = true);
+                     bool compensateExtTorques = true,
+                     bool real = false);
 
   /** Constructor
    * Builds a damped joint limits constraint and a motion constr depending on
@@ -52,6 +55,8 @@ public:
    * \param compensateExtTorques If true, compensates external disturbances using a feedforward torque signal. The
    * constraint will search for the compensation value in robot by calling `compensationTorques()` method, if not an
    * estimation of external torques acting on the robot will be used by calling `externalTorques()` method.
+   * \param real If true (TVM backend only), the equation of motion (H and C) is evaluated on the robot's real
+   * counterpart instead of the control robot. Has no effect on the Tasks backend.
    */
   DynamicsConstraint(const mc_rbdyn::Robots & robots,
                      unsigned int robotIndex,
@@ -59,7 +64,8 @@ public:
                      const std::array<double, 3> & damper,
                      double velocityPercent = 1.0,
                      bool infTorque = false,
-                     bool compensateExtTorques = true);
+                     bool compensateExtTorques = true,
+                     bool real = false);
 
   /** Constructor
    * Builds a CBF joint limits constraint and a motion constr depending on
@@ -74,13 +80,16 @@ public:
    * \param velocityPercent Maximum joint velocity percentage, 0.5 is advised
    * \param compensateExtTorques If true, external torques are added to the dynamic model constraint
    * \param activateConstraints If true, the constraint is activated
+   * \param real If true (TVM backend only), the equation of motion (H and C) is evaluated on the robot's real
+   * counterpart instead of the control robot. Has no effect on the Tasks backend.
    */
   DynamicsConstraint(const mc_rbdyn::Robots & robots,
                      unsigned int robotIndex,
                      const std::array<double, 5> & damperSecond,
                      double velocityPercent = 1.0,
                      bool compensateExtTorques = true,
-                     bool activateConstraints = true);
+                     bool activateConstraints = true,
+                     bool real = false);
 
   /** \brief Update the constraint
    *
@@ -116,6 +125,9 @@ public:
 
   inline unsigned int robotIndex() const noexcept { return robotIndex_; }
 
+  /** Whether this constraint evaluates the equation of motion on the real robot (TVM backend only) */
+  inline bool real() const noexcept { return real_; }
+
 protected:
   /** Holds the motion constraint implementation
    *
@@ -129,6 +141,8 @@ protected:
   /** Robot index for the constraint */
   unsigned int robotIndex_;
   bool activateConstraints_ = true;
+  /** If true (TVM backend only), the equation of motion is evaluated on the robot's real counterpart */
+  bool real_ = false;
 
 private:
   void addLogging(QPSolver & solver);

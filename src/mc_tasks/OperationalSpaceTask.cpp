@@ -34,7 +34,9 @@ OperationalSpaceTask::OperationalSpaceTask(const mc_solver::QPSolver & solver,
   accelerationFeedforward_(sva::MotionVecd::Zero()), externalWrench_(sva::ForceVecd::Zero()),
   gravityWrench_(sva::ForceVecd::Zero()), posError_(sva::MotionVecd::Zero()), velError_(sva::MotionVecd::Zero()),
   integralError_(sva::MotionVecd::Zero()), wrenchTarget_(sva::ForceVecd::Zero()),
-  prevPosTarget_(sva::PTransformd::Identity())
+  prevPosTarget_(sva::PTransformd::Identity()), frameJac_(robots_.robot(rIndex_).mb(), frame.body()),
+  jacMat_(6, robots_.robot(rIndex_).mb().nrDof()), dynamicJacTransposeLocal_(6, robots_.robot(rIndex_).mb().nrDof()),
+  cartesianInertiaLocal_(Eigen::Matrix6d::Zero()), shortJacMat_(6, frameJac_.dof())
 {
   if(backend_ == Backend::Tasks)
     mc_rtc::log::error_and_throw<std::runtime_error>(
@@ -42,6 +44,12 @@ OperationalSpaceTask::OperationalSpaceTask(const mc_solver::QPSolver & solver,
 
   name_ = "operational_space_" + frame.name() + "_" + solver.robots().robot(frame.robot().robotIndex()).name();
   type_ = "operational_space";
+  setStiffnessTranslational(10.0);
+  setStiffnessRotational(10.0);
+  setDampingTranslational(5.0);
+  setDampingRotational(5.0);
+  setIntegralGainTranslational(0.0);
+  setIntegralGainRotational(0.0);
   setMaxIntegralWrench(5, 10); // Anti-windup limits for the integral term
   enableIntegralTerm(false); // Integral term disabled by default
   reset();
@@ -70,78 +78,65 @@ void OperationalSpaceTask::update(mc_solver::QPSolver & solver)
 {
   wrenchTarget_ = sva::ForceVecd::Zero();
 
-  // // Compute Force components (PD + integral if enabled)
-  // // posError_ = sva::transformError(frame().position(), posTarget_);
-  // posError_ = sva::transformVelocity(frame().position().inv() * posTarget_);
+  computeDynamicJacobian();
 
-  // if(deriveVelocityTargetFromPosition_)
-  // {
-  //   velTarget_ = sva::transformError(prevPosTarget_, posTarget_) / solver.dt();
-  //   prevPosTarget_ = posTarget_;
-  // }
-
-  // // velError_ = velTarget_ - frame().velocity();
-  // sva::MotionVecd V_target_in_current = frame_->position().inv() * velTarget_;
-  // velError_ = V_target_in_current - frame_->velocity();
-
-  // if(integralTermEnabled_)
-  // {
-  //   integralError_ += posError_ * solver.dt();
-  //   Eigen::Vector6d force_i = integralGain_.vector().cwiseProduct(integralError_.vector());
-  //   integralWrench_ = // Anti-windup
-  //       sva::ForceVecd(force_i.head<3>().cwiseMax(-maxIntegralWrench_.force()).cwiseMin(maxIntegralWrench_.force()),
-  //                      force_i.tail<3>().cwiseMax(-maxIntegralWrench_.couple()).cwiseMin(maxIntegralWrench_.couple()));
-
-  //   Eigen::Vector6d integralErrorVec = integralWrench_.vector().cwiseQuotient(integralGain_.vector());
-  //   integralError_ = sva::MotionVecd(integralErrorVec.head<3>(), integralErrorVec.tail<3>());
-  //   wrenchTarget_ += integralWrench_;
-  // }
-
-  // Eigen::Vector6d pdWrench_b_Vec =
-  //   cartesianInertia() * (
-  //     stiffness_.vector().cwiseProduct(posError_.vector())
-  //     + damping_.vector().cwiseProduct(velError_.vector())
-  //     + accelerationFeedforward_.vector());
-  // sva::ForceVecd pdWrench_b(pdWrench_b_Vec);
-
-  // // transform to world frame
-  // sva::ForceVecd pdWrench_0 = frame_->position().dualMul(pdWrench_b);
-  // wrenchTarget_ += pdWrench_0;
-
-  // // Compute torque components (feedforward + compensation)
-  // auto & tvm_robot = robots_.robot(rIndex_).tvmRobot();
-  // externalWrench_ = sva::ForceVecd(WrenchTask::dynamicJacobianTranspose() * tvm_robot.tauExternal());
-  // if(compensateExternalWrench_) { wrenchTarget_ += externalWrench_; }
-
-  // Error in world frame
+  // Error in world frame — frame().position()/velocity() are plain mc_rbdyn
   posError_ = sva::transformVelocity(frame().position() * posTarget_.inv());
-
-  // Vel error in world
   velError_ = velTarget_ - frame_->velocity();
 
-  // PD in world frame
   Eigen::Vector6d pd = stiffness_.vector().cwiseProduct(posError_.vector())
                        + damping_.vector().cwiseProduct(velError_.vector()) + accelerationFeedforward_.vector();
-  sva::ForceVecd pdWrench(cartesianInertia() * pd);
+  sva::ForceVecd pdWrench(cartesianInertiaLocal_ * pd);
   wrenchTarget_ += pdWrench;
 
   computeForceGravityCompensation();
   if(compensateGravity_) { wrenchTarget_ += gravityWrench_; }
 
+  mc_rtc::log::info("[OSC] posError={} velError={} pd={} pdWrench={} wrenchTarget={}", posError_.vector().transpose(),
+                    velError_.vector().transpose(), pd.transpose(), pdWrench.vector().transpose(),
+                    wrenchTarget_.vector().transpose());
+
   WrenchTask::targetWrench(wrenchTarget_);
+}
+
+void OperationalSpaceTask::computeDynamicJacobian()
+{
+  auto & robot = robots_.robot(rIndex_);
+
+  // Task Jacobian at the frame's actual point, fresh from the current mbc
+  shortJacMat_ = frameJac_.jacobian(robot.mb(), robot.mbc(), frame().position());
+  frameJac_.fullJacobian(robot.mb(), shortJacMat_, jacMat_);
+
+  rbd::ForwardDynamics fd(robot.mb());
+  fd.computeH(robot.mb(), robot.mbc());
+  const Eigen::MatrixXd & H = fd.H();
+
+  Eigen::LDLT<Eigen::MatrixXd> H_ldlt(H);
+  Eigen::MatrixXd MinvJt = H_ldlt.solve(jacMat_.transpose()); // M^{-1} J^T
+
+  Eigen::Matrix6d JMinvJT = jacMat_ * MinvJt; // J M^{-1} J^T
+  cartesianInertiaLocal_ = JMinvJT.ldlt().solve(Eigen::Matrix6d::Identity()); // Λ
+
+  Eigen::MatrixXd JMInv = MinvJt.transpose(); // J M^{-1}
+  dynamicJacTransposeLocal_ = cartesianInertiaLocal_ * JMInv; // (J^#)^T = Λ J M^{-1}
+
+  mc_rtc::log::info("[OSC] frame={} cartesianInertiaLocal_ hasNaN={} \n{}", frame().name(),
+                    !cartesianInertiaLocal_.allFinite(), cartesianInertiaLocal_);
 }
 
 void OperationalSpaceTask::computeForceGravityCompensation()
 {
   auto & robot = robots_.robot(rIndex_);
+
   rbd::ForwardDynamics fd(robot.mb());
   fd.computeH(robot.mb(), robot.mbc());
-  const Eigen::VectorXd & Cg = fd.C(); // C*qdot + g
+  fd.computeC(robot.mb(), robot.mbc());
+  const Eigen::VectorXd & Cg = fd.C();
 
-  sva::MotionVecd jdotAlpha = frame().tvm_frame().normalAcceleration();
+  sva::MotionVecd jdotAlpha =
+      frameJac_.normalAcceleration(robot.mb(), robot.mbc(), frame().X_b_f(), frame().velocity());
 
-  Eigen::Vector6d forceGravityVec =
-      WrenchTask::dynamicJacobianTranspose() * Cg + WrenchTask::cartesianInertia() * jdotAlpha.vector();
+  Eigen::Vector6d forceGravityVec = dynamicJacTransposeLocal_ * Cg + cartesianInertiaLocal_ * jdotAlpha.vector();
   gravityWrench_ = sva::ForceVecd(forceGravityVec);
 }
 

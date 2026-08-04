@@ -34,6 +34,8 @@ struct RobotData
 {
   /** Reference joint order see mc_rbdyn::RobotModule */
   std::vector<std::string> refJointOrder;
+  /** Reference dof order */
+  std::vector<std::string> refDofOrder;
   /** Encoders' positions provided in the robot's ref joint order */
   std::vector<double> encoderValues;
   /** Encoders' velocities provided in the robot's ref joint order */

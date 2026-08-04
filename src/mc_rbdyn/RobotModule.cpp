@@ -59,6 +59,7 @@ void RobotModule::init(const rbd::parsers::ParserResult & res)
   _visual = res.visual;
   _collision = res.collision;
   if(_ref_joint_order.size() == 0) { make_default_ref_joint_order(); }
+  if(_ref_dof_order.size() == 0) { make_default_ref_dof_order(); }
   expand_stance();
   // FIXME revert this once https://github.com/jrl-umi3218/mesh_sampling/pull/6 has been resolved.
   const char * disableConvexGen = std::getenv("MC_RTC_DISABLE_CONVEX_GENERATION_PATCH");
@@ -293,6 +294,41 @@ void RobotModule::make_default_ref_joint_order()
   for(const auto & j : mb.joints())
   {
     if(j.dof() >= 1 && j.type() != rbd::Joint::Free) { _ref_joint_order.push_back(j.name()); }
+  }
+}
+
+void RobotModule::make_default_ref_dof_order()
+{
+  _ref_dof_order.resize(0);
+  const auto & alpha = mbc.alpha; // DoF Size variable
+  bool robotIsFloatingBase = (mb.nrJoints() > 0 && mb.joint(0).type() == rbd::Joint::Free);
+
+  for(size_t i = 0; i < alpha.size(); ++i)
+  {
+    const auto & block = alpha[i];
+    Eigen::DenseIndex size = static_cast<Eigen::DenseIndex>(block.size());
+    if(size == 0) { continue; }
+
+    if(i == 0 && robotIsFloatingBase)
+    {
+      static const std::array<std::string, 6> freeFlyerNames = {"rx", "ry", "rz", "x", "y", "z"};
+      _ref_dof_order.insert(_ref_dof_order.end(), freeFlyerNames.begin(), freeFlyerNames.end());
+    }
+    else
+    {
+      const std::string & jointName = mb.joint(static_cast<int>(i)).name();
+
+      if(size == 1) { _ref_dof_order.push_back(jointName); }
+      else
+      {
+        for(Eigen::DenseIndex k = 0; k < size; ++k) { _ref_dof_order.push_back(jointName + "_" + std::to_string(k)); }
+      }
+    }
+  }
+  // Assert that the number of DoF names matches the size of the number of dofs in the MultiBodyConfig
+  if(_ref_dof_order.size() != static_cast<size_t>(mb.nrDof()))
+  {
+    mc_rtc::log::error_and_throw<std::runtime_error>("[RobotModule] Inconsistent DoF count");
   }
 }
 
