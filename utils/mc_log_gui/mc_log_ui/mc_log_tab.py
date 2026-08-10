@@ -655,31 +655,25 @@ class MCLogTab(QtWidgets.QWidget):
             for i, jn in enumerate(self.rm.ref_joint_order()):
                 if len(bounds[0].get(jn, def_bound)) == 0:
                     continue
-                if "{}qIn_limits_lower_{}".format(prefix, i) in self.data:
-                    self.data["{}qIn_limits_lower_{}".format(prefix, i)].fill(
+                if "{}qLimits_lower_{}".format(prefix, i) in self.data:
+                    self.data["{}qLimits_lower_{}".format(prefix, i)].fill(
                         bounds[0].get(jn, def_bound)[0]
                     )
-                    self.data["{}qIn_limits_upper_{}".format(prefix, i)].fill(
+                    self.data["{}qLimits_upper_{}".format(prefix, i)].fill(
                         bounds[1].get(jn, def_bound)[0]
                     )
-                    self.data["{}qOut_limits_lower_{}".format(prefix, i)].fill(
-                        bounds[0].get(jn, def_bound)[0]
+                if "{}alphaLimits_lower_{}".format(prefix, i) in self.data:
+                    self.data["{}alphaLimits_lower_{}".format(prefix, i)].fill(
+                        bounds[2].get(jn, def_bound)[0]
                     )
-                    self.data["{}qOut_limits_upper_{}".format(prefix, i)].fill(
-                        bounds[1].get(jn, def_bound)[0]
+                    self.data["{}alphaLimits_upper_{}".format(prefix, i)].fill(
+                        bounds[3].get(jn, def_bound)[0]
                     )
-                if "{}tauIn_limits_lower_{}".format(prefix, i) in self.data:
-                    self.data["{}tauIn_limits_lower_{}".format(prefix, i)].fill(
+                if "{}tauLimits_lower_{}".format(prefix, i) in self.data:
+                    self.data["{}tauLimits_lower_{}".format(prefix, i)].fill(
                         bounds[4].get(jn, def_bound)[0]
                     )
-                    self.data["{}tauIn_limits_upper_{}".format(prefix, i)].fill(
-                        bounds[5].get(jn, def_bound)[0]
-                    )
-                if "{}tauOut_limits_lower_{}".format(prefix, i) in self.data:
-                    self.data["{}tauOut_limits_lower_{}".format(prefix, i)].fill(
-                        bounds[4].get(jn, def_bound)[0]
-                    )
-                    self.data["{}tauOut_limits_upper_{}".format(prefix, i)].fill(
+                    self.data["{}tauLimits_upper_{}".format(prefix, i)].fill(
                         bounds[5].get(jn, def_bound)[0]
                     )
 
