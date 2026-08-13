@@ -104,6 +104,8 @@ private:
   /** Run without feedback (open-loop) but with the real floating base */
   bool runOpenLoopWithRealFloatingBase();
   bool lowPassFilterStateInitialized_ = false;
+
+  std::vector<std::vector<double>> alphaDFiltered_;
   std::vector<std::vector<double>> alphaFiltered_;
   std::vector<std::vector<double>> qFiltered_;
 

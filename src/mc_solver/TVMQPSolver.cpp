@@ -178,6 +178,37 @@ bool TVMQPSolver::runOpenLoopWithRealFloatingBase()
     rbd::vectorToParam(tvm_robot.alphaD()->value(), robot.alphaD());
 
     const auto & joints = robot.mb().joints();
+
+    // if(openLoopRealFBlowPassFilterActive)
+    // {
+    //   if(!lowPassFilterStateInitialized_)
+    //   {
+    //     alphaDFiltered_ = robot.alphaD();
+    //     lowPassFilterStateInitialized_ = true;
+    //   }
+    //   else
+    //   {
+    //     double fc_max = 0.5*(1.0 / timeStep); // Nyquist frequency
+    //     double fc = std::min(fc_max, nyquistFraction * fc_max);
+    //     double alpha = 1 - std::exp(-2 * M_PI * fc * timeStep);
+
+    //     for(std::size_t i = 0; i < joints.size(); ++i)
+    //     {
+    //       if(joints[i].type() == rbd::Joint::Free) { continue; }
+
+    //       for(std::size_t j = 0; j < std::size_t(joints[i].dof()); ++j)
+    //       {
+    //         alphaDFiltered_[i][j] = alphaDFiltered_[i][j] + alpha * (robot.alphaD()[i][j] - alphaDFiltered_[i][j]);
+    //         robot.alphaD()[i][j] = alphaDFiltered_[i][j];
+    //       }
+    //     }
+    //   }
+    // }
+    // else
+    // {
+    //   lowPassFilterStateInitialized_ = false;
+    // }
+
     for(std::size_t i = 0; i < joints.size(); ++i)
     {
       switch(joints[i].type())
@@ -230,7 +261,9 @@ bool TVMQPSolver::runOpenLoopWithRealFloatingBase()
       }
       else
       {
-        double alpha = (M_PI * nyquistFraction) / (1.0 + M_PI * nyquistFraction);
+        double fc_max = 0.5 * (1.0 / timeStep); // Nyquist frequency
+        double fc = std::min(fc_max, nyquistFraction * fc_max);
+        double alpha = 1 - std::exp(-2 * M_PI * fc * timeStep);
 
         for(std::size_t i = 0; i < joints.size(); ++i)
         {
