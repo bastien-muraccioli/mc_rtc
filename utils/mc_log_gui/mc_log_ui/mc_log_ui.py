@@ -1472,34 +1472,32 @@ class MCLogUI(QtWidgets.QMainWindow):
             data["error_q_{}".format(i)] = (
                 data["qOut_{}".format(i)] - data["qIn_{}".format(i)]
             )
-            data["qIn_limits_lower_{}".format(i)] = np.full_like(
+            data["qLimits_lower_{}".format(i)] = np.full_like(
                 data["qIn_{}".format(i)], 0
             )
-            data["qIn_limits_upper_{}".format(i)] = np.full_like(
+            data["qLimits_upper_{}".format(i)] = np.full_like(
                 data["qIn_{}".format(i)], 0
             )
-            data["qOut_limits_lower_{}".format(i)] = data[
-                "qIn_limits_lower_{}".format(i)
-            ]
-            data["qOut_limits_upper_{}".format(i)] = data[
-                "qIn_limits_upper_{}".format(i)
-            ]
+            i += 1
+        i = 0
+        while "alphaIn_{}".format(i) in data and "alphaOut_{}".format(i) in data:
+            data["error_alpha_{}".format(i)] = (
+                data["alphaOut_{}".format(i)] - data["alphaIn_{}".format(i)]
+            )
+            data["alphaLimits_lower_{}".format(i)] = np.full_like(
+                data["alphaIn_{}".format(i)], 0
+            )
+            data["alphaLimits_upper_{}".format(i)] = np.full_like(
+                data["alphaIn_{}".format(i)], 0
+            )
             i += 1
         i = 0
         while "tauIn_{}".format(i) in data:
-            data["tauIn_limits_lower_{}".format(i)] = np.full_like(
+            data["tauLimits_lower_{}".format(i)] = np.full_like(
                 data["tauIn_{}".format(i)], 0
             )
-            data["tauIn_limits_upper_{}".format(i)] = np.full_like(
+            data["tauLimits_upper_{}".format(i)] = np.full_like(
                 data["tauIn_{}".format(i)], 0
-            )
-            i += 1
-        while "tauOut_{}".format(i) in data:
-            data["tauOut_limits_lower_{}".format(i)] = np.full_like(
-                data["tauOut_{}".format(i)], 0
-            )
-            data["tauOut_limits_upper_{}".format(i)] = np.full_like(
-                data["tauOut_{}".format(i)], 0
             )
             i += 1
         if "perf_SolverBuildAndSolve" in data and "perf_SolverSolve" in data:

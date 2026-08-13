@@ -212,8 +212,12 @@ void DynamicsConstraint::addToSolverImpl(QPSolver & solver)
       auto & problem = tvm_solver(solver).problem();
       auto & tvm_robot = solver.robot(robotIndex_).tvmRobot();
 
+      // Add the torque bounds
       auto tl_lim = tvm_robot.limits().tl;
       auto tu_lim = tvm_robot.limits().tu;
+      // Add the torque derivative bounds
+      auto tdl_lim = tvm_robot.limits().tdl;
+      auto tdu_lim = tvm_robot.limits().tdu;
 
       if(!activateConstraints_)
       {
@@ -222,11 +226,22 @@ void DynamicsConstraint::addToSolverImpl(QPSolver & solver)
         tu_lim.head(tvm_robot.qFloatingBase()->size()).setZero();
         tl_lim.tail(tvm_robot.qJoints()->size()).setConstant(-INFINITY);
         tu_lim.tail(tvm_robot.qJoints()->size()).setConstant(INFINITY);
+
+        tdl_lim.head(tvm_robot.qFloatingBase()->size()).setZero();
+        tdu_lim.head(tvm_robot.qFloatingBase()->size()).setZero();
+        tdl_lim.tail(tvm_robot.qJoints()->size()).setConstant(-INFINITY);
+        tdu_lim.tail(tvm_robot.qJoints()->size()).setConstant(INFINITY);
       }
 
       auto tL = problem.add(tl_lim <= tvm_robot.tau() <= tu_lim, tvm::task_dynamics::None(),
                             {tvm::requirements::PriorityLevel(0)});
       constraints_.push_back(tL);
+
+      /** Torque derivative limits */
+      auto tDL = problem.add(tdl_lim <= tvm::dot(tvm_robot.tau()) <= tdu_lim, tvm::task_dynamics::None(),
+                             {tvm::requirements::PriorityLevel(0)});
+      constraints_.push_back(tDL);
+
       mc_tvm::DynamicFunctionPtr dyn_fn = *static_cast<mc_tvm::DynamicFunctionPtr *>(motion_constr_.get());
       auto dyn = problem.add(dyn_fn == 0., tvm::task_dynamics::None(), {tvm::requirements::PriorityLevel(0)});
       constraints_.push_back(dyn);

@@ -129,7 +129,13 @@ void TVMKinematicsConstraint::addToSolver(mc_solver::TVMQPSolver & solver)
       startIdx += f->size();
     }
   }
-  /** FIXME Implement torque derivative and jerk bounds */
+
+  /** Jerk limits */
+  auto jl = tvm_robot.limits().jl.segment(startDof, nDof);
+  auto ju = tvm_robot.limits().ju.segment(startDof, nDof);
+  auto jL = solver.problem().add(jl <= tvm::dot(tvm_robot.qJoints(), 3) <= ju, tvm::task_dynamics::None{},
+                                 {tvm::requirements::PriorityLevel(0)});
+  constraints_.push_back(jL);
 }
 
 void TVMKinematicsConstraint::removeFromSolver(mc_solver::TVMQPSolver & solver)
