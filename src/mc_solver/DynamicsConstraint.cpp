@@ -7,6 +7,7 @@
 #include <mc_solver/ConstraintSetLoader.h>
 #include <mc_solver/TasksQPSolver.h>
 
+#include <mc_tvm/DerivativeFunction.h>
 #include <mc_tvm/DynamicFunction.h>
 
 #include <Tasks/Bounds.h>
@@ -238,8 +239,10 @@ void DynamicsConstraint::addToSolverImpl(QPSolver & solver)
       constraints_.push_back(tL);
 
       /** Torque derivative limits */
-      auto tDL = problem.add(tdl_lim <= tvm::dot(tvm_robot.tau()) <= tdu_lim, tvm::task_dynamics::None(),
-                             {tvm::requirements::PriorityLevel(0)});
+      mc_tvm::DerivativeFunctionPtr taud_fn =
+          std::make_shared<mc_tvm::DerivativeFunction>(solver.robot(robotIndex_), solver.dt(), tvm_robot.tau());
+      auto tDL =
+          problem.add(tdl_lim <= taud_fn <= tdu_lim, tvm::task_dynamics::None(), {tvm::requirements::PriorityLevel(0)});
       constraints_.push_back(tDL);
 
       mc_tvm::DynamicFunctionPtr dyn_fn = *static_cast<mc_tvm::DynamicFunctionPtr *>(motion_constr_.get());

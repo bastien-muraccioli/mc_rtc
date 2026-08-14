@@ -13,6 +13,8 @@
 
 #include "TVMKinematicsConstraint.h"
 
+#include <mc_tvm/DerivativeFunction.h>
+
 namespace mc_solver
 {
 
@@ -133,8 +135,10 @@ void TVMKinematicsConstraint::addToSolver(mc_solver::TVMQPSolver & solver)
   /** Jerk limits */
   auto jl = tvm_robot.limits().jl.segment(startDof, nDof);
   auto ju = tvm_robot.limits().ju.segment(startDof, nDof);
-  auto jL = solver.problem().add(jl <= tvm::dot(tvm_robot.qJoints(), 3) <= ju, tvm::task_dynamics::None{},
-                                 {tvm::requirements::PriorityLevel(0)});
+  mc_tvm::DerivativeFunctionPtr jerk_fn =
+      std::make_shared<mc_tvm::DerivativeFunction>(robot_, solver.dt(), tvm::dot(tvm_robot.qJoints(), 2));
+  auto jL =
+      solver.problem().add(jl <= jerk_fn <= ju, tvm::task_dynamics::None{}, {tvm::requirements::PriorityLevel(0)});
   constraints_.push_back(jL);
 }
 
