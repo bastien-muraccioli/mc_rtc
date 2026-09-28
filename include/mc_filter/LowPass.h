@@ -8,7 +8,9 @@
 #pragma once
 
 #include <mc_rtc/logging.h>
+#include <Eigen/Core>
 #include <algorithm>
+#include <type_traits>
 
 namespace mc_filter
 {
@@ -16,7 +18,7 @@ namespace mc_filter
 /** Low-pass filter from series of velocity measurements.
  *
  * Expects T to have:
- * - T::Zero() static method (e.g Eigen::Vector3d, etc)
+ * - T::Zero() static method (e.g Eigen::Vector3d, etc), or be an arithmetic or dynamic Eigen type
  */
 template<typename T>
 struct LowPass
@@ -28,7 +30,38 @@ struct LowPass
    * \param period Cutoff period.
    *
    */
-  LowPass(double dt, double period = 0) : cutoffPeriod_(period), dt_(dt) { reset(T::Zero()); }
+  LowPass(double dt, double period = 0) : cutoffPeriod_(period), dt_(dt)
+  {
+    if constexpr(std::is_base_of_v<Eigen::DenseBase<T>, T>)
+    {
+      if constexpr(T::SizeAtCompileTime != Eigen::Dynamic)
+      {
+        reset(T::Zero());
+      }
+    }
+    else if constexpr(std::is_arithmetic_v<T>)
+    {
+      reset(static_cast<T>(0));
+    }
+    else
+    {
+      reset(T::Zero());
+    }
+  }
+
+  /** Constructor with cutoff period and initial value.
+   *
+   * \param dt Sampling period.
+   *
+   * \param period Cutoff period.
+   *
+   * \param initialValue Initial value for the filter output.
+   *
+   */
+  LowPass(double dt, double period, const T & initialValue) : cutoffPeriod_(period), dt_(dt)
+  {
+    reset(initialValue);
+  }
 
   /** Get cutoff period. */
   double cutoffPeriod() const { return cutoffPeriod_; }
@@ -64,6 +97,17 @@ struct LowPass
    */
   void update(const T & newValue)
   {
+    if constexpr(std::is_base_of_v<Eigen::DenseBase<T>, T>)
+    {
+      if constexpr(T::SizeAtCompileTime == Eigen::Dynamic)
+      {
+        if(eval_.size() == 0)
+        {
+          eval_ = newValue;
+          return;
+        }
+      }
+    }
     double x = (cutoffPeriod_ <= dt_) ? 1. : dt_ / cutoffPeriod_;
     eval_ = x * newValue + (1. - x) * eval_;
   }

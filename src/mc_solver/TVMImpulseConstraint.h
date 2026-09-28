@@ -41,19 +41,54 @@ struct TVMImpulseConstraint
   mc_tvm::ImpulseFunctionPtr impFunctionLow() const{ return imp_constr_lower_;}
   mc_tvm::ImpulseFunctionPtr impFunctionHigh() const{ return imp_constr_upper_;}
 
+  void filterCutoffPeriod(double period)
+  {
+    if(imp_constr_lower_) imp_constr_lower_->filterCutoffPeriod(period);
+    if(imp_constr_upper_) imp_constr_upper_->filterCutoffPeriod(period);
+  }
+
   const Eigen::VectorXd & LowerLimit() { return const_lower_limit_;}
   const Eigen::VectorXd & UpperLimit() { return const_upper_limit_;}
 
-  // Eigen::VectorXd & RightSideLower(); // { return lambda_*(robot_.tvmRobot().limits().tl-ImpulsiveTorqures());}
-  // Eigen::VectorXd & RightSideUpper(); // { return lambda_*(robot_.tvmRobot().limits().tu-ImpulsiveTorqures());}
+  const Eigen::VectorXd & TorquePrediction() const
+  {
+    static const Eigen::VectorXd empty = Eigen::VectorXd::Zero(robot_.mb().nrDof());
+    return imp_constr_upper_ ? imp_constr_upper_->ImpulsiveTorquePrediction() : empty;
+  }
 
-  // Eigen::VectorXd & ImpulsiveTorqures() { return impFunctionLow()->ImpulsiveTorquePrediction();}
-  // Eigen::VectorXd & ImpulsiveTorqures2() { return impFunctionLow()->ImpulsiveTorquePrediction2();}
-  // Eigen::VectorXd & ActualImpulsiveTorqures() { return impFunctionLow()->ActualImpulsiveTorquePrediction();}
-  // Eigen::VectorXd & ImpulsiveTorquresDerivative() { return impFunctionLow()->ImpulsiveTorquePredictionDerivative();}
-  // Eigen::VectorXd & ImpulsiveTorquresDerivative_term1() { return impFunctionLow()->ImpulsiveTorquePredictionDerivative_term1();}
-  // Eigen::VectorXd & ImpulsiveTorquresDerivative_term2() { return impFunctionLow()->ImpulsiveTorquePredictionDerivative_term2();}
-  // Eigen::VectorXd & ImpulsiveTorquresDerivative_term3() { return impFunctionLow()->ImpulsiveTorquePredictionDerivative_term3();}
+  const Eigen::VectorXd & TorqueLowerLimit() const
+  {
+    return imp_constr_lower_ ? imp_constr_lower_->TorqueLowerLimit() : const_lower_limit_;
+  }
+
+  const Eigen::VectorXd & TorqueHigherLimit() const
+  {
+    return imp_constr_upper_ ? imp_constr_upper_->TorqueHigherLimit() : const_upper_limit_;
+  }
+
+  const Eigen::VectorXd & RightSideUpper() const
+  {
+    static const Eigen::VectorXd empty = Eigen::VectorXd::Zero(robot_.mb().nrDof());
+    return imp_constr_upper_ ? imp_constr_upper_->RightSide() : empty;
+  }
+
+  const Eigen::VectorXd & RightSideLower() const
+  {
+    static const Eigen::VectorXd empty = Eigen::VectorXd::Zero(robot_.mb().nrDof());
+    return imp_constr_lower_ ? imp_constr_lower_->RightSide() : empty;
+  }
+
+  const Eigen::VectorXd & DerivativeQP()
+  {
+    if(imp_constr_upper_)
+    {
+      derivative_qp_ = imp_constr_upper_->RightSide() + imp_constr_upper_->value();
+      return derivative_qp_;
+    }
+    static const Eigen::VectorXd empty = Eigen::VectorXd::Zero(robot_.mb().nrDof());
+    return empty;
+  }
+
   Eigen::VectorXd upper_limit_;
   Eigen::VectorXd lower_limit_;
 
@@ -66,6 +101,7 @@ protected:
 
   Eigen::VectorXd upper;
   Eigen::VectorXd lower;
+  Eigen::VectorXd derivative_qp_;
 
   double tau_high_;
   double K_;
