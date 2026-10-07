@@ -252,8 +252,26 @@ void ImpulseConstraint::removeFromSolverImpl(mc_solver::QPSolver & solver)
   const Eigen::VectorXd & ImpulseConstraint::LowerLimit() {return static_cast<TVMImpulseConstraint *>(constraint_.get())->LowerLimit();}
   const Eigen::VectorXd & ImpulseConstraint::UpperLimit() {return static_cast<TVMImpulseConstraint *>(constraint_.get())->UpperLimit();}
   Eigen::VectorXd & ImpulseConstraint::EffectiveLambda() {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->EffectiveLambda();}
-  Eigen::VectorXd & ImpulseConstraint::TorqueLowerLimit() {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->TorqueLowerLimit();}
-  Eigen::VectorXd & ImpulseConstraint::TorqueHigherLimit() {return static_cast<TVMImpulseConstraint *>(constraint_.get())->impFunctionLow()->TorqueHigherLimit();}
+  const Eigen::VectorXd & ImpulseConstraint::TorquePrediction() {return static_cast<TVMImpulseConstraint *>(constraint_.get())->TorquePrediction();}
+  const Eigen::VectorXd & ImpulseConstraint::TorqueLowerLimit() {return static_cast<TVMImpulseConstraint *>(constraint_.get())->TorqueLowerLimit();}
+  const Eigen::VectorXd & ImpulseConstraint::TorqueHigherLimit() {return static_cast<TVMImpulseConstraint *>(constraint_.get())->TorqueHigherLimit();}
+  const Eigen::VectorXd & ImpulseConstraint::RightSideUpper() {return static_cast<TVMImpulseConstraint *>(constraint_.get())->RightSideUpper();}
+  const Eigen::VectorXd & ImpulseConstraint::RightSideLower() {return static_cast<TVMImpulseConstraint *>(constraint_.get())->RightSideLower();}
+  const Eigen::VectorXd & ImpulseConstraint::DerivativeQP() {return static_cast<TVMImpulseConstraint *>(constraint_.get())->DerivativeQP();}
+
+void ImpulseConstraint::filterCutoffPeriod(double period)
+{
+  switch(backend_)
+  {
+    case QPSolver::Backend::Tasks:
+      break;
+    case QPSolver::Backend::TVM:
+      static_cast<TVMImpulseConstraint *>(constraint_.get())->filterCutoffPeriod(period);
+      break;
+    default:
+      break;
+  }
+}
 
 ImpulseConstraint::~ImpulseConstraint()
 {

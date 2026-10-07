@@ -74,8 +74,13 @@ public:
   const Eigen::VectorXd & LowerLimit();
   const Eigen::VectorXd & UpperLimit();
   Eigen::VectorXd & EffectiveLambda();
-  Eigen::VectorXd & TorqueLowerLimit();
-  Eigen::VectorXd & TorqueHigherLimit();
+  const Eigen::VectorXd & TorquePrediction();
+  const Eigen::VectorXd & TorqueLowerLimit();
+  const Eigen::VectorXd & TorqueHigherLimit();
+  const Eigen::VectorXd & RightSideUpper();
+  const Eigen::VectorXd & RightSideLower();
+  const Eigen::VectorXd & DerivativeQP();
+  void filterCutoffPeriod(double period);
 
   protected:
   /** Implementation of mc_solver::ConstraintSet::addToSolver */

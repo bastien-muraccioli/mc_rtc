@@ -37,6 +37,7 @@ ImpulseFunction::ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::
   last_joint_velocities_ = Eigen::VectorXd::Zero(robot_.mb().nrDof());
 
   q_d = Eigen::VectorXd::Zero(robot_.mb().nrDof());
+  q_d_filter_.reset(Eigen::VectorXd::Zero(robot_.mb().nrDof()));
   num_qd = Eigen::VectorXd::Zero(robot_.mb().nrDof());
   num_qdd = Eigen::VectorXd::Zero(robot_.mb().nrDof());
   lambda = Eigen::VectorXd::Zero(robot_.mb().nrDof());
@@ -50,10 +51,24 @@ ImpulseFunction::ImpulseFunction(const mc_rbdyn::Robot & robot, const mc_rbdyn::
 }
 
 ImpulseFunction::ImpulseFunction(const std::shared_ptr<mc_tasks::BSplineTrajectoryTask> & BSplineVel, const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal, double lambda_high, double lambda_low, double c_res, double delta_t, Eigen::VectorXd limit_high, Eigen::VectorXd limit_low, bool enforce_high_limit, double tau_high, double K, double * Activation_height)
-: BSplineVel_(BSplineVel),tvm::function::abstract::LinearFunction(robot.mb().nrDof()), robot_(robot), frame_(frame), normal_(normal), lambda_high(lambda_high), lambda_low(lambda_low), c_res_(c_res), delta_t_(delta_t), limit_high_(limit_high), limit_low_(limit_low), enforce_high_limit_(enforce_high_limit)
-  , jac_(frame.tvm_frame().rbdJacobian()), coriolis_calculator_(rbd::Coriolis(robot_.mb())), tau_high_(tau_high), K_(K), Activation_height_(Activation_height)
+: tvm::function::abstract::LinearFunction(robot.mb().nrDof()),
+  BSplineVel_(BSplineVel),
+  robot_(robot),
+  frame_(frame),
+  normal_(normal),
+  lambda_high(lambda_high),
+  lambda_low(lambda_low),
+  c_res_(c_res),
+  delta_t_(delta_t),
+  limit_high_(limit_high),
+  limit_low_(limit_low),
+  enforce_high_limit_(enforce_high_limit),
+  Activation_height_(Activation_height),
+  K_(K),
+  tau_high_(tau_high),
+  jac_(frame.tvm_frame().rbdJacobian()),
+  coriolis_calculator_(rbd::Coriolis(robot_.mb()))
 {
-  mc_rtc::log::info("test1");
   assert(frame_->robot().robotIndex() == robot_.robotIndex() && "ImpulseFunction frame must belong to the robot");
   auto & tvm_robot = robot.tvmRobot();
   registerUpdates(Update::B, &ImpulseFunction::updateb);
@@ -84,6 +99,7 @@ ImpulseFunction::ImpulseFunction(const std::shared_ptr<mc_tasks::BSplineTrajecto
   last_joint_velocities_ = Eigen::VectorXd::Zero(robot_.mb().nrDof());
 
   q_d = Eigen::VectorXd::Zero(robot_.mb().nrDof());
+  q_d_filter_.reset(Eigen::VectorXd::Zero(robot_.mb().nrDof()));
   num_qd = Eigen::VectorXd::Zero(robot_.mb().nrDof());
   num_qdd = Eigen::VectorXd::Zero(robot_.mb().nrDof());
   lambda = Eigen::VectorXd::Zero(robot_.mb().nrDof());
@@ -140,7 +156,8 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
     linear_jacobian.transpose() * me_d * P_n * linear_jacobian +
     linear_jacobian.transpose() * me * P_n * linear_jacobiand);
 
-  q_d = tvm::dot(robot.q(),1)->value();
+  q_d_filter_.update(tvm::dot(robot.q(), 1)->value());
+  q_d = q_d_filter_.eval();
 
   b_ = pre_multiplier_ * J_dq_new * q_d;
 
@@ -161,7 +178,7 @@ void ImpulseFunction::updateb() // TODO possibly make this function dependent on
   }
  
   // These are now used as constants but if used in a final version should be taken in initialization from input parameters
-  double timestep = 0.002;
+  double timestep = 0.005;
 
   auto current_vel = robot_.encoderVelocities();
 
@@ -290,7 +307,6 @@ void ImpulseFunction::updateJacobian()
 
 void ImpulseFunction::getLambda()
 {
-  double lambda_increment = (lambda_high - lambda_low)/static_cast<double>(lambda_growing_steps);
   if(linear_constraint_flag){
     double current_pos = (robot_.frame("Hammer_head").position().translation() - BSplineVel_->target().translation()).norm();
     if(current_pos < *Activation_height_){

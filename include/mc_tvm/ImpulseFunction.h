@@ -19,6 +19,7 @@
 #include <SpaceVecAlg/SpaceVecAlg>
 
 #include <mc_tvm/Robot.h>
+#include <mc_filter/LowPass.h>
 
 namespace mc_tvm
 {
@@ -47,12 +48,16 @@ public:
   ImpulseFunction(const std::shared_ptr<mc_tasks::BSplineTrajectoryTask> & BSplineVel, const mc_rbdyn::Robot & robot, const mc_rbdyn::RobotFrame & frame, const Eigen::Vector3d normal , double lambda_high, double lambda_low, double c_res, double delta_t, Eigen::VectorXd limit_high, Eigen::VectorXd limit_low, bool enforce_high_limit, double tau_high, double K, double * Activation_height );
 
   Eigen::VectorXd & TorqueLowerLimit(){ return limit_low_; }
+  const Eigen::VectorXd & TorqueLowerLimit() const { return limit_low_; }
 
   Eigen::VectorXd & TorqueHigherLimit(){ return limit_high_; }
+  const Eigen::VectorXd & TorqueHigherLimit() const { return limit_high_; }
 
   Eigen::VectorXd & EffectiveLambda(){ return lambda; }
+  const Eigen::VectorXd & EffectiveLambda() const { return lambda; }
 
   Eigen::VectorXd & ImpulsiveTorquePrediction(){ return tau_imp_pred; }
+  const Eigen::VectorXd & ImpulsiveTorquePrediction() const { return tau_imp_pred; }
 
   Eigen::VectorXd & ActualImpulsiveTorquePrediction(){ return tau_imp_act; }
 
@@ -67,6 +72,12 @@ public:
   Eigen::VectorXd & JointVelNum();
 
   Eigen::VectorXd & RightSide(){ return constraint_right_side_; }
+  const Eigen::VectorXd & RightSide() const { return constraint_right_side_; }
+
+  void filterCutoffPeriod(double period) { q_d_filter_.cutoffPeriod(period); }
+  double filterCutoffPeriod() const { return q_d_filter_.cutoffPeriod(); }
+  mc_filter::LowPass<Eigen::VectorXd> & filter() { return q_d_filter_; }
+  const mc_filter::LowPass<Eigen::VectorXd> & filter() const { return q_d_filter_; }
 
   Eigen::VectorXd last_joint_velocities_;
   
@@ -118,6 +129,7 @@ protected:
 
   Eigen::VectorXd alpha_d;
   Eigen::VectorXd q_d;
+  mc_filter::LowPass<Eigen::VectorXd> q_d_filter_{0.005, 0.015};
   Eigen::VectorXd q_dd;
 
   Eigen::VectorXd lambda;
