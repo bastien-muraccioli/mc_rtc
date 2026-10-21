@@ -109,6 +109,10 @@ private:
   std::vector<std::vector<double>> alphaFiltered_;
   std::vector<std::vector<double>> qFiltered_;
 
+  std::vector<std::vector<double>> alphaDPrev_;
+  std::vector<std::vector<double>> alphaPrev_;
+  std::vector<std::vector<double>> qPrev_;
+
   std::vector<std::vector<std::vector<double>>> q_hist_;
   std::vector<std::vector<std::vector<double>>> a_hist_;
 

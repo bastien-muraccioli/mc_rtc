@@ -352,8 +352,8 @@ protected:
   double nyquistFraction = 0.95; // 95% of Nyquist
   bool openLoopRealFBlowPassFilterActive = false;
 
-  double Lv = 20.0;
-  double Lp = 50.0;
+  double Lv = 0.0;
+  double Lp = 0.0;
 };
 
 } // namespace mc_solver

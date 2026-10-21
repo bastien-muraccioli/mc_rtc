@@ -160,6 +160,12 @@ bool TVMQPSolver::runOpenLoopWithRealFloatingBase()
     if(robot.mb().joint(0).type() != rbd::Joint::Free) { continue; }
 
     const auto & realRobot = realRobots().robot(r);
+    // if(openLoopRealFBlowPassFilterActive && lowPassFilterStateInitialized_)
+    // {
+    //   robot.q() = qPrev_;
+    //   robot.alpha() = alphaPrev_;
+    // }
+
     robot.q()[0] = realRobot.q()[0];
     robot.alpha()[0] = realRobot.alpha()[0];
     robot.forwardKinematics();
@@ -251,8 +257,26 @@ bool TVMQPSolver::runOpenLoopWithRealFloatingBase()
       }
     }
 
+    // Complementary filter q and alpha with realRobot's q and alpha
+    // const auto & realRobot = realRobots().robot(r);
+    // if(Lp >= 0 && Lv >= 0)
+    // {
+    //   for(std::size_t i = 0; i < joints.size(); ++i)
+    //     {
+    //       if(joints[i].type() == rbd::Joint::Free) { continue; }
+
+    //       for(std::size_t j = 0; j < std::size_t(joints[i].dof()); ++j)
+    //       {
+    //         robot.q()[i][j] += Lp * (realRobot.q()[i][j] - robot.q()[i][j]);
+    //         robot.alpha()[i][j] += Lv * (realRobot.alpha()[i][j] - robot.alpha()[i][j]);
+    //       }
+    //     }
+    // }
+
     if(openLoopRealFBlowPassFilterActive)
     {
+      // alphaPrev_ = robot.alpha();
+      // qPrev_ = robot.q();
       if(!lowPassFilterStateInitialized_)
       {
         qFiltered_ = robot.q();
