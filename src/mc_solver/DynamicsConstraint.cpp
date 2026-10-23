@@ -9,6 +9,7 @@
 
 #include <mc_tvm/DerivativeFunction.h>
 #include <mc_tvm/DynamicFunction.h>
+#include <mc_tvm/TorqueOverloadFunction.h>
 
 #include <Tasks/Bounds.h>
 
@@ -181,6 +182,48 @@ DynamicsConstraint::DynamicsConstraint(const mc_rbdyn::Robots & robots,
 {
 }
 
+static void checkOverload(const TorqueOverloadLimits & overload)
+{
+  if(overload.peakRatio < 1.0)
+  {
+    mc_rtc::log::error_and_throw("[DynamicsConstraint] TorqueOverloadLimits::peakRatio must be >= 1 (got {})",
+                                 overload.peakRatio);
+  }
+  if(overload.peakDuration <= 0.0)
+  {
+    mc_rtc::log::error_and_throw("[DynamicsConstraint] TorqueOverloadLimits::peakDuration must be > 0 (got {})",
+                                 overload.peakDuration);
+  }
+}
+
+DynamicsConstraint::DynamicsConstraint(const mc_rbdyn::Robots & robots,
+                                       unsigned int robotIndex,
+                                       double timeStep,
+                                       const TorqueOverloadLimits & overload,
+                                       bool compensateExtTorques,
+                                       bool real)
+: KinematicsConstraint(robots, robotIndex, timeStep),
+  motion_constr_(initialize(backend_, robots, robotIndex, compensateExtTorques, real)), robotIndex_(robotIndex),
+  real_(real), overload_(overload)
+{
+  checkOverload(overload);
+}
+
+DynamicsConstraint::DynamicsConstraint(const mc_rbdyn::Robots & robots,
+                                       unsigned int robotIndex,
+                                       const std::array<double, 5> & damperSecond,
+                                       const TorqueOverloadLimits & overload,
+                                       double velocityPercent,
+                                       bool compensateExtTorques,
+                                       bool activateConstraints,
+                                       bool real)
+: KinematicsConstraint(robots, robotIndex, damperSecond, velocityPercent, activateConstraints),
+  motion_constr_(initialize(backend_, robots, robotIndex, compensateExtTorques, real)), robotIndex_(robotIndex),
+  activateConstraints_(activateConstraints), real_(real), overload_(overload)
+{
+  checkOverload(overload);
+}
+
 void DynamicsConstraint::update(QPSolver & solver)
 {
   if(backend_ == QPSolver::Backend::Tasks)
@@ -234,9 +277,33 @@ void DynamicsConstraint::addToSolverImpl(QPSolver & solver)
         tdu_lim.tail(tvm_robot.qJoints()->size()).setConstant(INFINITY);
       }
 
+      if(overload_ && activateConstraints_)
+      {
+        /* Hard cap: the actuator can never exceed peakRatio * limit (protects magnets, gearbox and driver).
+         * The floating base stays at 0 and infinite limits stay infinite. */
+        const auto nJ = tvm_robot.qJoints()->size();
+        tl_lim.tail(nJ) *= overload_->peakRatio;
+        tu_lim.tail(nJ) *= overload_->peakRatio;
+      }
+
       auto tL = problem.add(tl_lim <= tvm_robot.tau() <= tu_lim, tvm::task_dynamics::None(),
                             {tvm::requirements::PriorityLevel(0)});
       constraints_.push_back(tL);
+
+      if(overload_ && activateConstraints_)
+      {
+        /* Time-limited bound: s(t) * tl <= tau <= s(t) * tu with s(t) from the I²t budget */
+        if(!overload_fn_)
+        {
+          overload_fn_ = std::make_shared<mc_tvm::TorqueOverloadFunction>(
+              solver.robot(robotIndex_), solver.dt(), overload_->peakRatio, overload_->peakDuration);
+        }
+        if(overload_fn_->size() > 0)
+        {
+          auto tO = problem.add(overload_fn_ <= 0., tvm::task_dynamics::None(), {tvm::requirements::PriorityLevel(0)});
+          constraints_.push_back(tO);
+        }
+      }
 
       /** Torque derivative limits */
       mc_tvm::DerivativeFunctionPtr taud_fn =
@@ -272,7 +339,18 @@ void DynamicsConstraint::removeFromSolverImpl(QPSolver & solver)
     case QPSolver::Backend::TVM:
     {
       // Remove the log entry before destroying the constraint
-      if(solver.logger()) { solver.logger()->removeLogEntry("DynamicsConstraint_contactTorque"); }
+      if(solver.logger())
+      {
+        solver.logger()->removeLogEntry("DynamicsConstraint_contactTorque");
+        if(overload_fn_)
+        {
+          const auto prefix = "DynamicsConstraint_" + solver.robot(robotIndex_).name() + "_torqueOverload_";
+          solver.logger()->removeLogEntry(prefix + "remainingBudget");
+          solver.logger()->removeLogEntry(prefix + "scale");
+          solver.logger()->removeLogEntry(prefix + "upperBound");
+          solver.logger()->removeLogEntry(prefix + "lowerBound");
+        }
+      }
       auto & constr = *static_cast<TVMKinematicsConstraint *>(constraint_.get());
       auto & problem = tvm_solver(solver).problem();
       problem.removeSubstitutionFor(*problem.constraint(*constr.constraints_.back()));
@@ -293,6 +371,16 @@ void DynamicsConstraint::addLogging(QPSolver & solver)
     {
       mc_tvm::DynamicFunctionPtr fn_ptr = *static_cast<mc_tvm::DynamicFunctionPtr *>(motion_constr_.get());
       logger.addLogEntry("DynamicsConstraint_contactTorque", [fn_ptr]() { return fn_ptr->contactTorque(); });
+      if(overload_fn_)
+      {
+        /* Values are given for the limited joints only, in the order of overload_fn_->indices() */
+        const auto prefix = "DynamicsConstraint_" + solver.robot(robotIndex_).name() + "_torqueOverload_";
+        auto ov = overload_fn_;
+        logger.addLogEntry(prefix + "remainingBudget", [ov]() { return ov->remainingBudget(); });
+        logger.addLogEntry(prefix + "scale", [ov]() -> const Eigen::VectorXd & { return ov->scale(); });
+        logger.addLogEntry(prefix + "upperBound", [ov]() { return ov->upperBound(); });
+        logger.addLogEntry(prefix + "lowerBound", [ov]() { return ov->lowerBound(); });
+      }
       break;
     }
     default:
@@ -322,6 +410,23 @@ mc_solver::ConstraintSetPtr load_kin_constr(mc_solver::QPSolver & solver, const 
 mc_solver::ConstraintSetPtr load_dyn_constr(mc_solver::QPSolver & solver, const mc_rtc::Configuration & config)
 {
   const auto robotIndex = robotIndexFromConfig(config, solver.robots(), "dynamics");
+  if(config.has("torqueOverload"))
+  {
+    /* torqueOverload: { peakRatio: 2.0, peakDuration: 1.0 } */
+    const auto & c = config("torqueOverload");
+    mc_solver::TorqueOverloadLimits overload;
+    c("peakRatio", overload.peakRatio);
+    c("peakDuration", overload.peakDuration);
+    if(config.has("damperSecond"))
+    {
+      const std::array<double, 5> damperSecond = config("damperSecond");
+      return std::make_shared<mc_solver::DynamicsConstraint>(
+          solver.robots(), robotIndex, damperSecond, overload, config("velocityPercent", 1.0),
+          config("compensateExtTorques", true), config("activateConstraints", true), config("real", false));
+    }
+    return std::make_shared<mc_solver::DynamicsConstraint>(solver.robots(), robotIndex, solver.dt(), overload,
+                                                           config("compensateExtTorques", true), config("real", false));
+  }
   if(config.has("damper"))
   {
     return std::make_shared<mc_solver::DynamicsConstraint>(solver.robots(), robotIndex, solver.dt(), config("damper"),

@@ -320,6 +320,7 @@ set(mc_tvm_HDR
     ${mc_tvm_HDR_DIR}/ForceFunction.h
     ${mc_tvm_HDR_DIR}/WrenchFunction.h
     ${mc_tvm_HDR_DIR}/DerivativeFunction.h
+    ${mc_tvm_HDR_DIR}/TorqueOverloadFunction.h
 )
 set(mc_tvm_SRC
     mc_tvm/CollisionFunction.cpp
@@ -348,6 +349,7 @@ set(mc_tvm_SRC
     mc_tvm/ForceFunction.cpp
     mc_tvm/WrenchFunction.cpp
     mc_tvm/DerivativeFunction.cpp
+    mc_tvm/TorqueOverloadFunction.cpp
 )
 
 add_library(mc_rbdyn SHARED ${mc_rbdyn_SRC} ${mc_rbdyn_HDR} ${mc_tvm_SRC} ${mc_tvm_HDR})

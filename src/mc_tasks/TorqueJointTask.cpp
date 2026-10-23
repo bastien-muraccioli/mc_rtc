@@ -46,9 +46,11 @@ void TorqueJointTask::reset()
   const auto & refOrder = robot.refJointOrder();
   for(size_t i = 0; i < refOrder.size(); ++i)
   {
+    // Guard: skip joints not present in the multibody chain (must be checked before jointIndexByName, which throws)
+    if(!robot.hasJoint(refOrder[i])) { continue; }
     const size_t mbcIndex = robot.jointIndexByName(refOrder[i]);
-    // Guard: skip joints not present in the multibody chain or skip fixed/multi-dof joints that have no scalar q
-    if(!robot.hasJoint(refOrder[i]) || q_mbc[mbcIndex].empty()) { continue; }
+    // Guard: skip fixed/multi-dof joints that have no scalar q
+    if(q_mbc[mbcIndex].empty()) { continue; }
     posTarget_[i] = q_mbc[mbcIndex][0];
   }
   prevPosTarget_ = posTarget_;
