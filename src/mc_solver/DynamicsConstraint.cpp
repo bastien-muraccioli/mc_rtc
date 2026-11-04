@@ -205,9 +205,7 @@ DynamicsConstraint::DynamicsConstraint(const mc_rbdyn::Robots & robots,
 : KinematicsConstraint(robots, robotIndex, timeStep),
   motion_constr_(initialize(backend_, robots, robotIndex, compensateExtTorques, real)), robotIndex_(robotIndex),
   real_(real), overload_(overload)
-{
-  checkOverload(overload);
-}
+{ checkOverload(overload); }
 
 DynamicsConstraint::DynamicsConstraint(const mc_rbdyn::Robots & robots,
                                        unsigned int robotIndex,
@@ -220,9 +218,7 @@ DynamicsConstraint::DynamicsConstraint(const mc_rbdyn::Robots & robots,
 : KinematicsConstraint(robots, robotIndex, damperSecond, velocityPercent, activateConstraints),
   motion_constr_(initialize(backend_, robots, robotIndex, compensateExtTorques, real)), robotIndex_(robotIndex),
   activateConstraints_(activateConstraints), real_(real), overload_(overload)
-{
-  checkOverload(overload);
-}
+{ checkOverload(overload); }
 
 void DynamicsConstraint::update(QPSolver & solver)
 {

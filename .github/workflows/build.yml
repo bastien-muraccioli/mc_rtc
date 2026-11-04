@@ -1,29 +1,16 @@
-name: CI of mc_rtc
+name: Build on Ubuntu
 
+# We do not use path-ignore on purpose here as it makes github skip the whole workflow
+# which does not play well with mergify's check-build job that must always run.
+# Instead we use dorny/paths-filter action to achieve the same result
+# with better granularity within the jobs.
 on:
   push:
     branches:
       - 'master'
-    paths-ignore:
-      # Changes to those files don't mandate running CI
-      - ".gitlab-ci.yml"
-      - ".jrl-ci"
-      - ".github/workflows/package.yml"
-      - ".github/workflows/sources/*"
-      - ".github/workflows/build-others.yml"
-      - ".github/workflows/docker/*"
-      - "debian/**"
-      - "*.md"
-      - "doc/**/README.md"
-      - "robots/README.md"
-      - "utils/**/README.md"
-      - "observers/**/README.md"
-      - "controllers/**/README.md"
-      - "binding/**/README.md"
-      - "src/mc_rtc/README.md"
   pull_request:
     branches:
-      - '**'
+      - 'master'
 
 # cancel running workflows when pushing to the same branch/pr
 concurrency:
@@ -35,7 +22,35 @@ env:
   GITHUB_BRANCH: ${{ github.head_ref || github.ref_name }}
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+    - uses: actions/checkout@v7
+    - uses: dorny/paths-filter@v4
+      id: filter
+      with:
+        filters: |
+          code:
+            - '.github/workflows/build.yml'
+            - 'benchmarks/**'
+            - 'binding/**'
+            # XXX: doc only needs build for json schemas, and even there
+            # it's only for cmake install paths injection
+            # we should define more fine-grained rules here
+            - 'doc/**'
+            - 'include/'
+            - 'src/**'
+            - 'tests/**'
+            - 'utils/**'
+            - 'CMakeLists.txt'
+
   build:
+    needs: changes
+    # only trigger build steps if the changes are on relevant files
+    if: needs.changes.outputs.code == 'true'
+
     strategy:
       fail-fast: false
       matrix:
@@ -257,3 +272,4 @@ jobs:
       - uses: re-actors/alls-green@release/v1
         with:
           jobs: ${{ toJSON(needs) }}
+          allowed-skips: build # accept skipped builds as success

@@ -157,19 +157,13 @@ void TVMKinematicsConstraint::removeFromSolver(mc_solver::TVMQPSolver & solver)
 static mc_rtc::void_ptr initialize_tvm(const mc_rbdyn::Robot & robot,
                                        const std::array<double, 5> & damperSecond,
                                        double vp)
-{
-  return mc_rtc::make_void_ptr<TVMKinematicsConstraint>(robot, damperSecond, vp);
-}
+{ return mc_rtc::make_void_ptr<TVMKinematicsConstraint>(robot, damperSecond, vp); }
 
 static mc_rtc::void_ptr initialize_tvm(const mc_rbdyn::Robot & robot, const std::array<double, 3> & damper, double vp)
-{
-  return mc_rtc::make_void_ptr<TVMKinematicsConstraint>(robot, damper, vp);
-}
+{ return mc_rtc::make_void_ptr<TVMKinematicsConstraint>(robot, damper, vp); }
 
 static mc_rtc::void_ptr initialize_tvm(const mc_rbdyn::Robot & robot)
-{
-  return initialize_tvm(robot, std::array<double, 3>{0.1, 0.01, 0.5}, 0.5);
-}
+{ return initialize_tvm(robot, std::array<double, 3>{0.1, 0.01, 0.5}, 0.5); }
 
 static mc_rtc::void_ptr initialize(QPSolver::Backend backend,
                                    const mc_rbdyn::Robots & robots,

@@ -10,7 +10,36 @@ on:
       CACHIX_AUTH_TOKEN:
         required: false
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+    - uses: actions/checkout@v7
+    - uses: dorny/paths-filter@v4
+      id: filter
+      with:
+        filters: |
+          code:
+            - '.github/workflows/nix-build.yml'
+            - 'benchmarks/**'
+            - 'binding/**'
+            # XXX: doc only needs build for json schemas, and even there
+            # it's only for cmake install paths injection
+            # we should define more fine-grained rules here
+            - 'doc/**'
+            - 'include/'
+            - 'src/**'
+            - 'tests/**'
+            - 'utils/**'
+            - 'CMakeLists.txt'
+            - 'flake.nix'
+            - 'flake.lock'
   nix:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    env:
+      CACHIX_AUTH_TOKEN: ${{secrets.CACHIX_AUTH_TOKEN}}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -18,9 +47,10 @@ jobs:
         os: [ubuntu-latest]
         ccache: [true, false]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
+          allow-unsafe-pr-checkout: true
       - uses: cachix/install-nix-action@v31
       - uses: cachix/cachix-action@v17
         with:
@@ -55,13 +85,15 @@ jobs:
           sudo ls -ld /var/cache/ccache
       - run: nix flake check -L ${{ steps.flags.outputs.args }}
       - run: nix build -L ${{ steps.flags.outputs.args }}
-  check:
-    if: always()
-    name: check-macos-linux-nix
-    runs-on: ubuntu-latest
-    needs:
-      - nix
-    steps:
-      - uses: re-actors/alls-green@release/v1
+      - name: Export closure to a NAR archive
+        if: ${{ env.CACHIX_AUTH_TOKEN == '' }}
+        run: |
+          # Query the entire closure (dependencies + result) and export it
+          nix-store --export $(nix-store -qR ./result) > ./nix-result-closure.nar
+
+      - name: Upload closure artifact
+        if: ${{ env.CACHIX_AUTH_TOKEN == '' }}
+        uses: actions/upload-artifact@v4
         with:
-          jobs: ${{ toJSON(needs) }}
+          name: nix-closure
+          path: ./nix-result-closure.nar

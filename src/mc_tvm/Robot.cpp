@@ -185,14 +185,10 @@ Robot::Robot(NewRobotToken, const mc_rbdyn::Robot & robot)
 }
 
 void Robot::updateFK()
-{
-  updateVar(robot_.mbc().q, *q_);
-}
+{ updateVar(robot_.mbc().q, *q_); }
 
 void Robot::updateFV()
-{
-  updateVar(robot_.mbc().alpha, *dq_);
-}
+{ updateVar(robot_.mbc().alpha, *dq_); }
 
 void Robot::updateFA()
 {
@@ -218,24 +214,16 @@ void Robot::updateNormalAcceleration()
 }
 
 void Robot::updateH()
-{
-  fd_.computeH(robot_.mb(), robot_.mbc());
-}
+{ fd_.computeH(robot_.mb(), robot_.mbc()); }
 
 void Robot::updateC()
-{
-  fd_.computeC(robot_.mb(), robot_.mbc());
-}
+{ fd_.computeC(robot_.mb(), robot_.mbc()); }
 
 void Robot::updateRealH()
-{
-  fdReal_.computeH(realRobot().mb(), realRobot().mbc());
-}
+{ fdReal_.computeH(realRobot().mb(), realRobot().mbc()); }
 
 void Robot::updateRealC()
-{
-  fdReal_.computeC(realRobot().mb(), realRobot().mbc());
-}
+{ fdReal_.computeC(realRobot().mb(), realRobot().mbc()); }
 
 tvm::VariablePtr Robot::qJoint(size_t jIdx)
 {
