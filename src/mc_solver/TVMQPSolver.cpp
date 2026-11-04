@@ -267,8 +267,8 @@ bool TVMQPSolver::runOpenLoopWithRealFloatingBase()
 
     //       for(std::size_t j = 0; j < std::size_t(joints[i].dof()); ++j)
     //       {
-    //         robot.q()[i][j] += Lp * (realRobot.q()[i][j] - robot.q()[i][j]);
-    //         robot.alpha()[i][j] += Lv * (realRobot.alpha()[i][j] - robot.alpha()[i][j]);
+    //         robot.q()[i][j] += Lp * (robot.q()[i][j] - realRobot.q()[i][j]);
+    //         robot.alpha()[i][j] += Lv * (robot.alpha()[i][j] - realRobot.alpha()[i][j]);
     //       }
     //     }
     // }
